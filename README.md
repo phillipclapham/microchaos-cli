@@ -33,7 +33,7 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 MicroChaos features a modular component-based architecture:
 
-```
+```text
 microchaos/
 ├── bootstrap.php          # Component loader
 ├── core/                  # Core components
@@ -50,7 +50,7 @@ This architecture makes the codebase more maintainable, testable, and extensible
 
 MicroChaos uses a build system that compiles the modular version into a single-file distribution:
 
-```
+```text
 build.js                   # Node.js build script
 dist/                      # Generated distribution files
 └── microchaos-cli.php     # Compiled single-file version
