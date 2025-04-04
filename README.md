@@ -157,7 +157,7 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 🛠 Future Ideas (Possibility Fractals):
 
 - Test plans via JSON config (wp microchaos plan)`
-- WP Dashboard UI integration
+- WP Dashboard UI integration/convert to plugin
 - Ability to send cache breaking cookies or headers
 - Add --static-delay flag to turn off randomization of burst timing
 - Add ability to rotate endpoints during tests
