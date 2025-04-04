@@ -7,15 +7,22 @@
  * Author: Phill
  */
 
-if (defined('WP_CLI') && WP_CLI) {
+// Bootstrap MicroChaos components
+if (file_exists(dirname(__FILE__) . '/microchaos/bootstrap.php')) {
+    require_once dirname(__FILE__) . '/microchaos/bootstrap.php';
+}
 
-	class MicroChaos_LoadTest_Command {
+// Legacy WP-CLI command registration for backward compatibility
+if (defined('WP_CLI') && WP_CLI && !class_exists('MicroChaos_Commands')) {
+    \WP_CLI::add_command('microchaos', 'MicroChaos_LoadTest_Command');
 
-		private $results = [];
-		private $resourceResults = [];
-		private $cache_profile_enabled = false;
-		private $collect_cache_headers = false;
-		private $cacheHeaders = [];
+    // Legacy command class that will be used if the new component system fails to load
+    class MicroChaos_LoadTest_Command {
+        private $results = [];
+        private $resourceResults = [];
+        private $cache_profile_enabled = false;
+        private $collect_cache_headers = false;
+        private $cacheHeaders = [];
 
 		/**
 		 * Run an internal load test using loopback requests.
@@ -645,5 +652,4 @@ if (defined('WP_CLI') && WP_CLI) {
 		}
 	}
 
-	WP_CLI::add_command('microchaos', 'MicroChaos_LoadTest_Command');
 }
