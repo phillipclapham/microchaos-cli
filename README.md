@@ -23,7 +23,7 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ### Standard Installation
 
-1. Copy the contents of the `dist/microchaos-cli` directory to `wp-content/mu-plugins/`.
+1. Copy the file `microchaos-cli.php` from the `dist` directory to `wp-content/mu-plugins/` on your site.
 2. Make sure WP-CLI is available in your environment.
 3. You're ready to chaos!
 
