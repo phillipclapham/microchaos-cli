@@ -39,21 +39,21 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 
 ## 🔧 CLI Options
 
---endpoint=<slug> home, shop, cart, checkout, or custom:/my-path
---count=<n> Total requests to send (default: 100)
---burst=<n> Requests per burst (default: 10)
---delay=<seconds> Delay between bursts (default: 2)
-`–method=<GET POST
---body=<data> POST/PUT body (string, JSON, or file:path.json)
---auth=<email> Run as a specific logged-in user
---multi-auth=<email1,email2> Rotate across multiple users
---warm-cache Prime the cache before testing
---flush-between Flush cache before each burst
---log-to=<relative path> Log results to file under wp-content/
---concurrency-mode=async Use curl_multi_exec() for parallel bursts
---rampup Gradually increase burst size to simulate organic load
---resource-logging Print memory and CPU usage during test
---cache-headers Parse cache headers (x-ac, x-nananana, etc.) and summarize hit/miss behavior
+- --endpoint=<slug> home, shop, cart, checkout, or custom:/my-path
+- --count=<n> Total requests to send (default: 100)
+- --burst=<n> Requests per burst (default: 10)
+- --delay=<seconds> Delay between bursts (default: 2)
+- `–method=<GET POST
+- --body=<data> POST/PUT body (string, JSON, or file:path.json)
+- --auth=<email> Run as a specific logged-in user
+- --multi-auth=<email1,email2> Rotate across multiple users
+- --warm-cache Prime the cache before testing
+- --flush-between Flush cache before each burst
+- --log-to=<relative path> Log results to file under wp-content/
+- --concurrency-mode=async Use curl_multi_exec() for parallel bursts
+- --rampup Gradually increase burst size to simulate organic load
+- --resource-logging Print memory and CPU usage during test
+- --cache-headers Parse cache headers (x-ac, x-nananana, etc.) and summarize hit/miss behavior
 
 ---
 
