@@ -145,20 +145,22 @@ Parsed and summarized directly from HTTP response headers—no deep instrumentat
 ## 🧠 Design Philosophy
 
 “Improvisation > Perfection. Paradox is fuel.”
+
 Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and answers.
 
- • ⚡ Internal-only, real-world load generation
- • 🧬 Built for performance discovery and observability
- • 🤝 Friendly for TAMS, support engineers, and even devs ;)
+- ⚡ Internal-only, real-world load generation
+- 🧬 Built for performance discovery and observability
+- 🤝 Friendly for TAMS, support engineers, and even devs ;)
 
 ---
 
-🛠 Future Ideas (Possibility Fractals)
- • Test plans via JSON config (wp microchaos plan)`
- • WP Dashboard UI integration
- • Ability to send cache breaking cookies or headers
- • Add --static-delay flag to turn off randomization of burst timing
- • Add ability to rotate endpoints during tests
+🛠 Future Ideas (Possibility Fractals):
+
+- Test plans via JSON config (wp microchaos plan)`
+- WP Dashboard UI integration
+- Ability to send cache breaking cookies or headers
+- Add --static-delay flag to turn off randomization of burst timing
+- Add ability to rotate endpoints during tests
 
 ---
 
