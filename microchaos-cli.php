@@ -32,7 +32,7 @@ if (defined('WP_CLI') && WP_CLI) {
 		 *
 		 * ## HOW TO USE
 		 *
-		 * 1. Decide the real-world traffic scenario you need to test(e.g., 20 concurrent hits
+		 * 1. Decide the real-world traffic scenario you need to test (e.g., 20 concurrent hits
 		 * sustained, or a daily average of 30 hits/second at peak).
 		 *
 		 * 2. Run the loopback test with at least 2–3× those numbers to see if resource usage climbs

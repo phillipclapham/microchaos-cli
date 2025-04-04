@@ -27,6 +27,10 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ## 🛠 Usage
 
+1. Decide the real-world traffic scenario you need to test (e.g., 20 concurrent hits sustained, or a daily average of 30 hits/second at peak).
+2. Run the loopback test with at least 2–3× those numbers to see if resource usage climbs to a point of concern.
+3. Watch server-level metrics (PHP error logs, memory usage, CPU load) to see if you’re hitting resource ceilings.
+
 ```bash
 wp microchaos loadtest --endpoint=home --count=100
 ```
