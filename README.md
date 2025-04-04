@@ -166,7 +166,7 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 🖖 Author
 
-Built by Phill and the AI entity known as Nexus, in a caffeine-fueled, chaos-aligned, performance-obsessed dev haze.
+Built by Phill in a caffeine-fueled, chaos-aligned, performance-obsessed dev haze.
 
 ⸻
 
