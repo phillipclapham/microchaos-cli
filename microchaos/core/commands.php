@@ -61,6 +61,10 @@ class MicroChaos_Commands {
      *
      * [--count=<number>]
      * : Total number of requests to send. Default: 100
+     * 
+     * [--duration=<minutes>]
+     * : Run test for specified duration in minutes instead of fixed request count.
+     *   When specified, this takes precedence over --count option.
      *
      * [--burst=<number>]
      * : Number of concurrent requests to fire per burst. Default: 10
@@ -164,6 +168,9 @@ class MicroChaos_Commands {
      *     # Compare with previously saved baseline
      *     wp microchaos loadtest --endpoint=home --count=100 --compare-baseline=homepage
      *
+     *     # Run load test for a specific duration
+     *     wp microchaos loadtest --endpoint=home --duration=5 --burst=10
+     *
      * @param array $args Command arguments
      * @param array $assoc_args Command options
      */
@@ -176,6 +183,7 @@ class MicroChaos_Commands {
             $endpoint = 'home'; // Default endpoint
         }
 
+        $duration = isset($assoc_args['duration']) ? floatval($assoc_args['duration']) : null;
         $count = intval($assoc_args['count'] ?? 100);
         $burst = intval($assoc_args['burst'] ?? 10);
         $delay = intval($assoc_args['delay'] ?? 2);
@@ -342,7 +350,11 @@ class MicroChaos_Commands {
             \WP_CLI::log("-> Body: " . (strlen($body) > 50 ? substr($body, 0, 47) . '...' : $body));
         }
 
-        \WP_CLI::log("-> Total: $count | Burst: $burst | Delay: {$delay}s");
+        if ($duration) {
+            \WP_CLI::log("-> Duration: {$duration} " . ($duration == 1 ? "minute" : "minutes") . " | Burst: $burst | Delay: {$delay}s");
+        } else {
+            \WP_CLI::log("-> Total: $count | Burst: $burst | Delay: {$delay}s");
+        }
 
         if ($collect_cache_headers) {
             \WP_CLI::log("-> Cache header tracking enabled");
@@ -362,10 +374,26 @@ class MicroChaos_Commands {
         // Run the load test
         $completed = 0;
         $current_ramp = $rampup ? 1 : $burst; // Start ramp-up at 1 concurrent request if enabled
-
         $endpoint_index = 0; // For serial rotation
-
-        while ($completed < $count) {
+        
+        // Set up duration-based testing
+        $start_time = time();
+        $end_time = $duration ? $start_time + ($duration * 60) : null;
+        $run_by_duration = ($duration !== null);
+        
+        // Keep running until we hit our target (count or time)
+        while (true) {
+            // Check if we should stop based on our exit condition
+            if ($run_by_duration) {
+                if (time() >= $end_time) {
+                    break;
+                }
+            } else {
+                if ($completed >= $count) {
+                    break;
+                }
+            }
+            
             // Monitor resources if enabled
             if ($resource_logging) {
                 $resource_data = $resource_monitor->log_resource_utilization();
@@ -376,7 +404,12 @@ class MicroChaos_Commands {
                 $current_ramp = min($current_ramp + 1, $burst);
             }
 
-            $current_burst = min($current_ramp, $burst, $count - $completed);
+            // For duration mode, always use the full burst
+            // For count mode, limit by remaining count
+            $current_burst = $run_by_duration 
+                ? $current_ramp 
+                : min($current_ramp, $burst, $count - $completed);
+                
             \WP_CLI::log("⚡ Burst of $current_burst requests");
 
             // Flush cache if specified
@@ -436,9 +469,21 @@ class MicroChaos_Commands {
             }
 
             $completed += $current_burst;
+            
+            // Display elapsed time if running by duration
+            if ($run_by_duration) {
+                $elapsed_seconds = time() - $start_time;
+                $elapsed_minutes = floor($elapsed_seconds / 60);
+                $remaining_seconds = $elapsed_seconds % 60;
+                $time_display = $elapsed_minutes . "m " . $remaining_seconds . "s";
+                $percentage = min(round(($elapsed_seconds / ($duration * 60)) * 100), 100);
+                \WP_CLI::log("⏲ Time elapsed: $time_display ($percentage% complete, $completed requests sent)");
+            }
 
-            // Skip delay for the last burst
-            if ($completed < $count) {
+            // Determine if we should add delay
+            $should_delay = $run_by_duration ? true : ($completed < $count);
+            
+            if ($should_delay) {
                 $random_delay = rand($delay * 50, $delay * 150) / 100; // Random delay between 50% and 150% of base delay
                 \WP_CLI::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
                 sleep($random_delay);
@@ -484,6 +529,13 @@ class MicroChaos_Commands {
             $cache_analyzer->report_summary($reporting_engine->get_request_count());
         }
 
-        \WP_CLI::success("✅ Load test complete: $count requests fired.");
+        if ($run_by_duration) {
+            $total_minutes = $duration;
+            $actual_seconds = time() - $start_time;
+            $actual_minutes = round($actual_seconds / 60, 1);
+            \WP_CLI::success("✅ Load test complete: $completed requests fired over $actual_minutes minutes.");
+        } else {
+            \WP_CLI::success("✅ Load test complete: $count requests fired.");
+        }
     }
 }

@@ -65,8 +65,6 @@ If you've made changes to the modular components and want to rebuild the single-
 node build.js
 ```
 
-A PHP build script (build.php) is also available but deprecated and will be removed in a future version.
-
 This will generate a fresh single-file version in the `dist/` directory, ready for distribution. The build script:
 
 1. Extracts all component classes
@@ -99,6 +97,7 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 - `--endpoint=<slug>` home, shop, cart, checkout, or custom:/my-path
 - `--endpoints=<endpoint-list>` Comma-separated list of endpoints to rotate through
 - `--count=<n>` Total requests to send (default: 100)
+- `--duration=<minutes>` Run test for specified duration instead of fixed request count
 - `--burst=<n>` Requests per burst (default: 10)
 - `--delay=<seconds>` Delay between bursts (default: 2)
 - `--method=<method>` HTTP method to use (GET, POST, PUT, DELETE, etc.)
@@ -182,6 +181,12 @@ Compare with previously saved baseline
 wp microchaos loadtest --endpoint=home --count=100 --compare-baseline=homepage
 ```
 
+Run a test for a specific duration instead of request count
+
+```bash
+wp microchaos loadtest --endpoint=home --duration=5 --burst=15 --resource-logging
+```
+
 ---
 
 ## 📊 What You Get
@@ -205,7 +210,7 @@ Each request is timestamped, status-coded, cache-labeled, and readable at a glan
    Success: 10 | Errors: 0 | Error Rate: 0%
    Avg Time: 0.0331s | Median: 0.0296s
    Fastest: 0.0278s | Slowest: 0.0567s
-   
+
    Response Time Distribution:
    0.03s - 0.04s [██████████████████████████████] 8
    0.04s - 0.05s [█████] 1
@@ -222,7 +227,7 @@ Each request is timestamped, status-coded, cache-labeled, and readable at a glan
    Peak Memory: Avg: 118.76 MB, Median: 118.76 MB, Min: 102.32 MB, Max: 129.15 MB
    CPU Time (User): Avg: 1.01s, Median: 1.01s, Min: 0.65s, Max: 1.45s
    CPU Time (System): Avg: 0.33s, Median: 0.33s, Min: 0.12s, Max: 0.54s
-   
+
    Memory Usage (MB):
    Memory     [████████████████████████████████] 118.34
    Peak       [████████████████████████████████████] 118.76
@@ -258,7 +263,7 @@ Parsed and summarized directly from HTTP response headers—no deep instrumentat
    Success: 10 | Errors: 0 | Error Rate: 0%
    Avg Time: 0.0254s | Median: 0.0238s
    Fastest: 0.0212s | Slowest: 0.0387s
-   
+
    Comparison to Baseline:
    - Avg: ↓23.5% vs 0.0331s
    - Median: ↓19.6% vs 0.0296s
@@ -282,8 +287,6 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
-- **Remove PHP build script** - Remove the deprecated build.php in favor of standardizing on the Node.js build script (build.js) for a single source of truth in the build process.
-
 - **Automated thresholds** - Add an option to auto-determine good/warning/critical thresholds based on first run data, making the colored output more meaningful for each specific environment. Thresholds would adjust based on the actual performance profile of the site being tested rather than using generic values.
 
 - **Resource trend tracking** - During longer tests, capture and visualize trends (not just averages) to identify if memory/CPU usage stabilizes or grows unbounded. This would help detect memory leaks or resource exhaustion issues that only appear over time but aren't visible in averages or medians.
@@ -295,8 +298,6 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 - **Session replay** - Record a real user session (all requests, headers, timing) and allow replaying it at scale to simulate actual user behavior patterns rather than synthetic single-endpoint tests.
 
 - **Headless WordPress** - Add `--bootstrap-only` mode that doesn't load full WordPress for more accurate core code testing. This would reduce overhead when testing specific components or API endpoints where the full WP stack isn't necessary.
-
-- **Test duration option** - Allow specifying a test duration instead of request count (e.g., "run for 5 minutes" vs "send 100 requests") to better simulate sustained load over time rather than burst-based testing.
 
 - **Progressive load testing** - Gradually increasing load until a specific failure threshold is reached, to determine breaking points and maximum capacity before performance degradation. Would help establish clear scaling recommendations.
 
