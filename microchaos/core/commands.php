@@ -156,6 +156,12 @@ class MicroChaos_Commands {
      * 
      * [--use-thresholds=<profile>]
      * : Use previously saved thresholds from specified profile.
+     * 
+     * [--monitoring-integration]
+     * : Enable external monitoring integration by logging structured test data to error log.
+     * 
+     * [--monitoring-test-id=<id>]
+     * : Custom test ID for monitoring integration. Default: auto-generated.
      *
      * ## EXAMPLES
      *
@@ -271,6 +277,10 @@ class MicroChaos_Commands {
         $threshold_profile = $assoc_args['auto-thresholds-profile'] ?? 'default';
         $use_thresholds = $assoc_args['use-thresholds'] ?? null;
         
+        // Monitoring integration parameters
+        $monitoring_integration = isset($assoc_args['monitoring-integration']);
+        $monitoring_test_id = $assoc_args['monitoring-test-id'] ?? null;
+        
         // Load custom thresholds if specified
         if ($use_thresholds) {
             $loaded = MicroChaos_Thresholds::load_thresholds($use_thresholds);
@@ -289,6 +299,12 @@ class MicroChaos_Commands {
         $resource_monitor = new MicroChaos_Resource_Monitor();
         $cache_analyzer = new MicroChaos_Cache_Analyzer();
         $reporting_engine = new MicroChaos_Reporting_Engine();
+        
+        // Initialize integration logger
+        $integration_logger = new MicroChaos_Integration_Logger([
+            'enabled' => $monitoring_integration,
+            'test_id' => $monitoring_test_id
+        ]);
 
         // Process multiple endpoints if specified
         $endpoint_list = [];
@@ -439,6 +455,29 @@ class MicroChaos_Commands {
         if ($collect_cache_headers) {
             \WP_CLI::log("-> Cache header tracking enabled");
         }
+        
+        if ($monitoring_integration) {
+            \WP_CLI::log("-> 🔌 Monitoring integration enabled (test ID: {$integration_logger->test_id})");
+            
+            // Log test configuration for monitoring tools
+            $config = [
+                'endpoint' => $endpoint,
+                'endpoints' => $endpoints,
+                'count' => $count,
+                'duration' => $duration,
+                'burst' => $burst,
+                'delay' => $delay,
+                'method' => $method,
+                'concurrency_mode' => isset($assoc_args['concurrency-mode']) ? $assoc_args['concurrency-mode'] : 'serial',
+                'progressive' => $progressive_mode,
+                'is_auth' => ($auth_user !== null || $multi_auth !== null),
+                'cache_headers' => $collect_cache_headers,
+                'resource_logging' => $resource_logging,
+                'test_type' => $progressive_mode ? 'progressive' : ($duration ? 'duration' : 'count')
+            ];
+            
+            $integration_logger->log_test_start($config);
+        }
 
         // Warm cache if specified
         if ($warm) {
@@ -477,6 +516,11 @@ class MicroChaos_Commands {
             // Monitor resources if enabled
             if ($resource_logging) {
                 $resource_data = $resource_monitor->log_resource_utilization();
+                
+                // Log resource data to integration logger if enabled
+                if ($monitoring_integration) {
+                    $integration_logger->log_resource_snapshot($resource_data);
+                }
             }
 
             // Calculate burst size
@@ -537,6 +581,13 @@ class MicroChaos_Commands {
 
             // Add results to reporting engine
             $reporting_engine->add_results($results);
+            
+            // Log results to integration logger if enabled
+            if ($monitoring_integration) {
+                foreach ($results as $result) {
+                    $integration_logger->log_request($result);
+                }
+            }
 
             // Process cache headers
             if ($collect_cache_headers) {
@@ -546,6 +597,17 @@ class MicroChaos_Commands {
                         $cache_analyzer->collect_headers([$header => $value]);
                     }
                 }
+            }
+            
+            // Log burst completion to integration logger if enabled
+            if ($monitoring_integration) {
+                $burst_summary = [
+                    'burst_size' => $current_burst,
+                    'results' => $results,
+                    'endpoints' => $burst_urls,
+                    'completed_total' => $completed
+                ];
+                $integration_logger->log_burst_complete($completed / $current_burst, $current_burst, $burst_summary);
             }
 
             $completed += $current_burst;
@@ -642,6 +704,21 @@ class MicroChaos_Commands {
         if ($collect_cache_headers) {
             $cache_analyzer->report_summary($reporting_engine->get_request_count());
         }
+        
+        // Log test completion to integration logger
+        if ($monitoring_integration) {
+            $summary = $reporting_engine->generate_summary();
+            $resource_summary = $resource_logging ? $resource_monitor->generate_summary() : null;
+            
+            // Include cache summary if available
+            if ($collect_cache_headers) {
+                $cache_report = $cache_analyzer->generate_report($reporting_engine->get_request_count());
+                $summary['cache'] = $cache_report;
+            }
+            
+            $integration_logger->log_test_complete($summary, $resource_summary);
+            \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
+        }
 
         if ($progressive_mode) {
             // Switch to progressive load testing mode
@@ -662,7 +739,9 @@ class MicroChaos_Commands {
                 $warm,
                 $collect_cache_headers,
                 $rotation_mode,
-                $resource_logging
+                $resource_logging,
+                $monitoring_integration,
+                $integration_logger
             );
         } elseif ($run_by_duration) {
             $total_minutes = $duration;
@@ -694,6 +773,8 @@ class MicroChaos_Commands {
      * @param bool   $collect_cache_headers Whether to collect cache headers
      * @param string $rotation_mode        Endpoint rotation mode
      * @param bool   $resource_logging     Whether to log resource usage
+     * @param bool   $monitoring_integration Whether to log data for external monitoring
+     * @param object $integration_logger   Integration logger instance
      */
     protected function run_progressive_test(
         $endpoint_list,
@@ -712,7 +793,9 @@ class MicroChaos_Commands {
         $warm,
         $collect_cache_headers,
         $rotation_mode,
-        $resource_logging
+        $resource_logging,
+        $monitoring_integration = false,
+        $integration_logger = null
     ) {
         // Initialize components
         $request_generator = new MicroChaos_Request_Generator([
@@ -833,6 +916,22 @@ class MicroChaos_Commands {
                 $memory_percentage = ($resource_summary['memory']['max'] / $memory_limit) * 100;
             }
             
+            // Log progressive level to integration logger if enabled
+            if ($monitoring_integration && $integration_logger) {
+                $level_data = [
+                    'concurrency' => $concurrency,
+                    'timing' => $summary['timing'],
+                    'error_rate' => $error_rate
+                ];
+                
+                if ($resource_logging) {
+                    $level_data['resource'] = $resource_summary;
+                    $level_data['memory_percentage'] = $memory_percentage;
+                }
+                
+                $integration_logger->log_progressive_level($concurrency, $level_data);
+            }
+            
             // Report summary for this level
             \WP_CLI::log("Results at concurrency $concurrency:");
             \WP_CLI::log("  Avg response: " . MicroChaos_Thresholds::format_value($avg_response_time, 'response_time') . 
@@ -898,6 +997,27 @@ class MicroChaos_Commands {
             if ($collect_cache_headers) {
                 $cache_analyzer->report_summary($reporting_engine->get_request_count());
             }
+        }
+        
+        // Log test completion to integration logger if enabled
+        if ($monitoring_integration && $integration_logger && $last_summary) {
+            $final_data = [
+                'progressive_result' => [
+                    'breaking_point' => $breaking_point,
+                    'breaking_reason' => $breaking_reason,
+                    'total_requests' => $total_requests,
+                    'max_tested' => $breaking_point ?: $progressive_max,
+                    'recommended_capacity' => $breaking_point ? max(1, floor($breaking_point * 0.8)) : $progressive_max
+                ],
+                'summary' => $last_summary
+            ];
+            
+            if ($resource_logging && $last_resource_summary) {
+                $final_data['resource_summary'] = $last_resource_summary;
+            }
+            
+            $integration_logger->log_test_complete($final_data);
+            \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
         }
         
         if ($breaking_point) {

@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v1.8.1
+v1.8.2
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -41,7 +41,9 @@ microchaos/
     ├── request-generator.php # HTTP request management
     ├── cache-analyzer.php # Cache header analysis
     ├── resource-monitor.php # System resource tracking
-    └── reporting-engine.php # Results collection and reporting
+    ├── reporting-engine.php # Results collection and reporting
+    ├── integration-logger.php # External monitoring integration
+    └── thresholds.php     # Performance thresholds and visualization
 ```
 
 This architecture makes the codebase more maintainable, testable, and extensible for developers who want to customize or extend functionality.
@@ -127,6 +129,8 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 - `--cache-headers` Parse cache headers and summarize hit/miss behavior
 - `--save-baseline=<n>` Save results as a baseline for future comparisons
 - `--compare-baseline=<n>` Compare results with a saved baseline
+- `--monitoring-integration` Enable external monitoring integration via PHP error log
+- `--monitoring-test-id=<id>` Specify custom test ID for monitoring integration
 
 ### Progressive Load Testing
 
@@ -236,6 +240,12 @@ Run a test with previously calibrated thresholds
 
 ```bash
 wp microchaos loadtest --endpoint=home --count=100 --use-thresholds=homepage
+```
+
+Run test with monitoring integration enabled for external metrics collection
+
+```bash
+wp microchaos loadtest --endpoint=home --count=50 --monitoring-integration
 ```
 
 ---
@@ -360,8 +370,6 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 ---
 
 ## 🛠 Future Ideas
-
-- **Integration hooks** - Add lightweight hooks for external monitoring tools to consume MicroChaos data (e.g., a status endpoint that New Relic/Grafana could poll). This would allow deeper correlation between the synthetic load and infrastructure-level metrics. We will begin with WP Cloud Insights (lightweight Grafana) integration and do this by using PHP error logging to capture data for monitoring in Cloud Insights.
 
 - **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
 

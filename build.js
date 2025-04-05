@@ -18,6 +18,7 @@ const sources = {
   header: path.join(__dirname, "microchaos-cli.php"),
   components: [
     path.join(__dirname, "microchaos/core/thresholds.php"),
+    path.join(__dirname, "microchaos/core/integration-logger.php"),
     path.join(__dirname, "microchaos/core/request-generator.php"),
     path.join(__dirname, "microchaos/core/resource-monitor.php"),
     path.join(__dirname, "microchaos/core/cache-analyzer.php"),
