@@ -114,6 +114,9 @@ class MicroChaos_Commands {
      *
      * [--resource-logging]
      * : Log resource utilization during the test.
+     * 
+     * [--resource-trends]
+     * : Track and analyze resource utilization trends over time. Useful for detecting memory leaks.
      *
      * [--cache-headers]
      * : Collect and summarize response cache headers like x-ac and x-nananana.
@@ -213,6 +216,9 @@ class MicroChaos_Commands {
      *     # Run load test for a specific duration
      *     wp microchaos loadtest --endpoint=home --duration=5 --burst=10
      *     
+     *     # Run load test with resource trend tracking to detect memory leaks
+     *     wp microchaos loadtest --endpoint=home --duration=10 --resource-logging --resource-trends
+     *     
      *     # Run progressive load testing to find max capacity
      *     wp microchaos loadtest --endpoint=home --progressive --resource-logging
      *     
@@ -254,6 +260,7 @@ class MicroChaos_Commands {
         $multi_auth = $assoc_args['multi-auth'] ?? null;
         $rampup = isset($assoc_args['rampup']);
         $resource_logging = isset($assoc_args['resource-logging']);
+        $resource_trends = isset($assoc_args['resource-trends']);
         $method = strtoupper($assoc_args['method'] ?? 'GET');
         $body = $assoc_args['body'] ?? null;
         $custom_cookies = $assoc_args['cookie'] ?? null;
@@ -296,7 +303,9 @@ class MicroChaos_Commands {
             'collect_cache_headers' => $collect_cache_headers,
         ]);
 
-        $resource_monitor = new MicroChaos_Resource_Monitor();
+        $resource_monitor = new MicroChaos_Resource_Monitor([
+            'track_trends' => $resource_trends
+        ]);
         $cache_analyzer = new MicroChaos_Cache_Analyzer();
         $reporting_engine = new MicroChaos_Reporting_Engine();
         
@@ -689,6 +698,11 @@ class MicroChaos_Commands {
         // Report resource utilization if enabled
         if ($resource_logging) {
             $resource_monitor->report_summary($resource_baseline, null, $use_thresholds);
+            
+            // Report resource trends if enabled
+            if ($resource_trends) {
+                $resource_monitor->report_trends();
+            }
         }
         
         // Save baseline if specified
@@ -741,7 +755,8 @@ class MicroChaos_Commands {
                 $rotation_mode,
                 $resource_logging,
                 $monitoring_integration,
-                $integration_logger
+                $integration_logger,
+                $resource_trends
             );
         } elseif ($run_by_duration) {
             $total_minutes = $duration;
@@ -775,6 +790,7 @@ class MicroChaos_Commands {
      * @param bool   $resource_logging     Whether to log resource usage
      * @param bool   $monitoring_integration Whether to log data for external monitoring
      * @param object $integration_logger   Integration logger instance
+     * @param bool   $resource_trends      Whether to track and analyze resource trends
      */
     protected function run_progressive_test(
         $endpoint_list,
@@ -795,13 +811,16 @@ class MicroChaos_Commands {
         $rotation_mode,
         $resource_logging,
         $monitoring_integration = false,
-        $integration_logger = null
+        $integration_logger = null,
+        $resource_trends = false
     ) {
         // Initialize components
         $request_generator = new MicroChaos_Request_Generator([
             'collect_cache_headers' => $collect_cache_headers,
         ]);
-        $resource_monitor = new MicroChaos_Resource_Monitor();
+        $resource_monitor = new MicroChaos_Resource_Monitor([
+            'track_trends' => $resource_trends
+        ]);
         $cache_analyzer = new MicroChaos_Cache_Analyzer();
         $reporting_engine = new MicroChaos_Reporting_Engine();
         
@@ -992,6 +1011,11 @@ class MicroChaos_Commands {
             
             if ($resource_logging && $last_resource_summary) {
                 $resource_monitor->report_summary(null, $last_resource_summary);
+                
+                // Report resource trends if enabled
+                if ($resource_trends) {
+                    $resource_monitor->report_trends();
+                }
             }
             
             if ($collect_cache_headers) {

@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v1.8.2
+v1.8.4
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -126,6 +126,7 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 ### Monitoring & Reporting
 
 - `--resource-logging` Print memory and CPU usage during test
+- `--resource-trends` Track and analyze resource usage trends over time to detect memory leaks
 - `--cache-headers` Parse cache headers and summarize hit/miss behavior
 - `--save-baseline=<n>` Save results as a baseline for future comparisons
 - `--compare-baseline=<n>` Compare results with a saved baseline
@@ -218,6 +219,12 @@ Run a test for a specific duration instead of request count
 wp microchaos loadtest --endpoint=home --duration=5 --burst=15 --resource-logging
 ```
 
+Run a test with trend analysis to detect potential memory leaks
+
+```bash
+wp microchaos loadtest --endpoint=home --duration=10 --resource-logging --resource-trends
+```
+
 Run progressive load testing to find capacity limits
 
 ```bash
@@ -294,6 +301,34 @@ Each request is timestamped, status-coded, cache-labeled, and readable at a glan
    Peak       [████████████████████████████████████] 118.76
    MaxMem     [██████████████████████████████████████████████] 127.89
    MaxPeak    [███████████████████████████████████████████████] 129.15
+```
+
+---
+
+### 📈 Resource Trend Analysis (with --resource-trends)
+
+```bash
+📈 Resource Trend Analysis:
+   Data Points: 25 over 120.45 seconds
+   Memory Usage: ↑12.3% over test duration
+   Pattern: Moderate growth
+   Peak Memory: ↑8.7% over test duration
+   Pattern: Stabilizing
+
+   Memory Usage Trend (MB over time):
+     127.5 ┌────────────────────────────────────────────────────────────┐
+     124.2 │                                                •••---------│
+     121.8 │                                         ••----•            │
+     119.5 │                                    •----                   │
+     117.1 │                            ••-----•                        │
+     114.8 │                       ••--•                                │
+     112.4 │                 ••---•                                     │
+     110.1 │             •--•                                           │
+     107.8 │        •---•                                               │
+     105.4 │  •••--•                                                    │
+     103.1 │-•                                                          │
+      10.0 └────────────────────────────────────────────────────────────┘
+       0.1     30.1     60.2    90.2
 ```
 
 ---
@@ -375,11 +410,7 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 - **Resource trend tracking** - During longer tests, capture and visualize trends (not just averages) to identify if memory/CPU usage stabilizes or grows unbounded. This would help detect memory leaks or resource exhaustion issues that only appear over time but aren't visible in averages or medians.
 
-- **Session replay** - Record a real user session (all requests, headers, timing) and allow replaying it at scale to simulate actual user behavior patterns rather than synthetic single-endpoint tests.
-
 - **Snapshot comparison** - Save full detail snapshots that include all individual request data, not just summaries, for more granular analysis between test runs and historical trending.
-
-- **Auto-documentation** - Generate a simple HTML/Markdown report after tests with conclusions about site performance for easy sharing with team members or clients. Would include recommendations based on observed metrics and comparisons with industry benchmarks.
 
 ---
 
