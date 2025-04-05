@@ -230,14 +230,13 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
+- Add max/min CPU/memory usage tracking
+- Ability to set multiple endpoints in a single test
+- Ability to send cookies with requests
+- Ability to send custom headers with requests
 - Test plans via JSON config (`wp microchaos plan`)
-- WordPress admin UI integration
 - Response body matching/diffing capabilities
 - Enhanced export format options (CSV/JSON)
-- Visual reporting and historical data comparison
-- Configurable request throttling and rate limiting
-- Automated cache behavior detection
-- Integration with other performance monitoring tools
 
 ---
 
