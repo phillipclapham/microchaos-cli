@@ -361,11 +361,11 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
+- **Integration hooks** - Add lightweight hooks for external monitoring tools to consume MicroChaos data (e.g., a status endpoint that New Relic/Grafana could poll). This would allow deeper correlation between the synthetic load and infrastructure-level metrics. We will begin with WP Cloud Insights (lightweight Grafana) integration and do this by using PHP error logging to capture data for monitoring in Cloud Insights.
+
 - **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
 
 - **Resource trend tracking** - During longer tests, capture and visualize trends (not just averages) to identify if memory/CPU usage stabilizes or grows unbounded. This would help detect memory leaks or resource exhaustion issues that only appear over time but aren't visible in averages or medians.
-
-- **Integration hooks** - Add lightweight hooks for external monitoring tools to consume MicroChaos data (e.g., a status endpoint that New Relic/Grafana could poll). This would allow deeper correlation between the synthetic load and infrastructure-level metrics. We will begin with WP Cloud Insights (lightweight Grafana) integration and do this by using PHP error logging to capture data for monitoring in Cloud Insights.
 
 - **Session replay** - Record a real user session (all requests, headers, timing) and allow replaying it at scale to simulate actual user behavior patterns rather than synthetic single-endpoint tests.
 
