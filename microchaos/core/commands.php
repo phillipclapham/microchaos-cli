@@ -41,7 +41,7 @@ class MicroChaos_Commands {
      * 1. Decide the real-world traffic scenario you need to test (e.g., 20 concurrent hits
      * sustained, or a daily average of 30 hits/second at peak).
      *
-     * 2. Run the loopback test with at least 2–3× those numbers to see if resource usage climbs
+     * 2. Run the loopback test with at least 2-3x those numbers to see if resource usage climbs
      * to a point of concern.
      *
      * 3. Watch server-level metrics (PHP error logs, memory usage, CPU load) to see if you're hitting resource ceilings.
@@ -50,11 +50,11 @@ class MicroChaos_Commands {
      *
      * [--endpoint=<endpoint>]
      * : The page to test. Options:
-     *     home       → /
-     *     shop       → /shop/
-     *     cart       → /cart/
-     *     checkout   → /checkout/
-     *     custom:/path → any relative path (e.g., custom:/my-page/)
+     *     home       -> /
+     *     shop       -> /shop/
+     *     cart       -> /cart/
+     *     checkout   -> /checkout/
+     *     custom:/path -> any relative path (e.g., custom:/my-page/)
      *
      * [--endpoints=<endpoint-list>]
      * : Comma-separated list of endpoints to rotate through (uses same format as --endpoint).
@@ -93,6 +93,9 @@ class MicroChaos_Commands {
      * [--cookie=<cookie>]
      * : Set custom cookie(s) in name=value format. Use comma for multiple cookies.
      *
+     * [--header=<header>]
+     * : Set custom HTTP headers in name=value format. Use comma for multiple headers. Example: X-Test=123,Authorization=Bearer abc123
+     *
      * [--concurrency-mode=<mode>]
      * : Use 'async' to simulate concurrent requests in each burst. Default: serial
      *
@@ -107,6 +110,12 @@ class MicroChaos_Commands {
      *
      * [--rotation-mode=<mode>]
      * : How to rotate through endpoints when multiple are specified. Options: serial, random. Default: serial.
+     *
+     * [--save-baseline=<name>]
+     * : Save the results of this test as a baseline for future comparisons (optional name).
+     *
+     * [--compare-baseline=<name>]
+     * : Compare results with a previously saved baseline (defaults to 'default').
      *
      * ## EXAMPLES
      *
@@ -143,8 +152,17 @@ class MicroChaos_Commands {
      *     # Test with custom cookies
      *     wp microchaos loadtest --endpoint=home --count=50 --cookie="test_cookie=1,another_cookie=value"
      *
+     *     # Test with custom HTTP headers
+     *     wp microchaos loadtest --endpoint=home --count=50 --header="X-Test=true,Authorization=Bearer token123"
+     *
      *     # Test with endpoint rotation
      *     wp microchaos loadtest --endpoints=home,shop,cart --count=60 --rotation-mode=random
+     *
+     *     # Save test results as a baseline for future comparison
+     *     wp microchaos loadtest --endpoint=home --count=100 --save-baseline=homepage
+     *
+     *     # Compare with previously saved baseline
+     *     wp microchaos loadtest --endpoint=home --count=100 --compare-baseline=homepage
      *
      * @param array $args Command arguments
      * @param array $assoc_args Command options
@@ -171,6 +189,7 @@ class MicroChaos_Commands {
         $method = strtoupper($assoc_args['method'] ?? 'GET');
         $body = $assoc_args['body'] ?? null;
         $custom_cookies = $assoc_args['cookie'] ?? null;
+        $custom_headers = $assoc_args['header'] ?? null;
         $rotation_mode = $assoc_args['rotation-mode'] ?? 'serial';
         $collect_cache_headers = isset($assoc_args['cache-headers']);
 
@@ -291,27 +310,42 @@ class MicroChaos_Commands {
             \WP_CLI::log("🍪 Added " . count($cookie_pairs) . " custom " .
                           (count($cookie_pairs) === 1 ? "cookie" : "cookies"));
         }
+        
+        // Process custom headers if specified
+        if ($custom_headers) {
+            $headers = [];
+            $header_pairs = array_map('trim', explode(',', $custom_headers));
+            
+            foreach ($header_pairs as $pair) {
+                list($name, $value) = array_map('trim', explode('=', $pair, 2));
+                $headers[$name] = $value;
+            }
+            
+            $request_generator->set_custom_headers($headers);
+            \WP_CLI::log("📝 Added " . count($header_pairs) . " custom " .
+                          (count($header_pairs) === 1 ? "header" : "headers"));
+        }
 
         \WP_CLI::log("🚀 MicroChaos Load Test Started");
 
         // Log the test configuration
         if (count($endpoint_list) === 1) {
-            \WP_CLI::log("→ URL: {$endpoint_list[0]['url']}");
+            \WP_CLI::log("-> URL: {$endpoint_list[0]['url']}");
         } else {
-            \WP_CLI::log("→ URLs: " . count($endpoint_list) . " endpoints (" .
+            \WP_CLI::log("-> URLs: " . count($endpoint_list) . " endpoints (" .
                           implode(', ', array_column($endpoint_list, 'slug')) . ") - Rotation mode: $rotation_mode");
         }
 
-        \WP_CLI::log("→ Method: $method");
+        \WP_CLI::log("-> Method: $method");
 
         if ($body) {
-            \WP_CLI::log("→ Body: " . (strlen($body) > 50 ? substr($body, 0, 47) . '...' : $body));
+            \WP_CLI::log("-> Body: " . (strlen($body) > 50 ? substr($body, 0, 47) . '...' : $body));
         }
 
-        \WP_CLI::log("→ Total: $count | Burst: $burst | Delay: {$delay}s");
+        \WP_CLI::log("-> Total: $count | Burst: $burst | Delay: {$delay}s");
 
         if ($collect_cache_headers) {
-            \WP_CLI::log("→ Cache header tracking enabled");
+            \WP_CLI::log("-> Cache header tracking enabled");
         }
 
         // Warm cache if specified
@@ -411,12 +445,38 @@ class MicroChaos_Commands {
             }
         }
 
+        // Handle baseline comparison if specified
+        $compare_baseline = isset($assoc_args['compare-baseline']) ? $assoc_args['compare-baseline'] : null;
+        $save_baseline = isset($assoc_args['save-baseline']) ? $assoc_args['save-baseline'] : null;
+        
+        // Default baseline name if provided without value
+        if ($compare_baseline === null && isset($assoc_args['compare-baseline'])) {
+            $compare_baseline = 'default';
+        }
+        
+        if ($save_baseline === null && isset($assoc_args['save-baseline'])) {
+            $save_baseline = 'default';
+        }
+        
+        // Load baseline for comparison if specified
+        $perf_baseline = $compare_baseline ? $reporting_engine->get_baseline($compare_baseline) : null;
+        $resource_baseline = $compare_baseline && $resource_logging ? $resource_monitor->get_baseline($compare_baseline) : null;
+        
         // Generate reports
-        $reporting_engine->report_summary();
+        $reporting_engine->report_summary($perf_baseline);
 
         // Report resource utilization if enabled
         if ($resource_logging) {
-            $resource_monitor->report_summary();
+            $resource_monitor->report_summary($resource_baseline);
+        }
+        
+        // Save baseline if specified
+        if ($save_baseline) {
+            $reporting_engine->save_baseline($save_baseline);
+            if ($resource_logging) {
+                $resource_monitor->save_baseline($save_baseline);
+            }
+            \WP_CLI::success("✅ Baseline '{$save_baseline}' saved.");
         }
 
         // Report cache headers if enabled

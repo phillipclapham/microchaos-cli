@@ -3,7 +3,7 @@
  * Plugin Name: MicroChaos CLI Load Tester
  * Description: Internal WP-CLI based WordPress load tester for staging environments where
  * external load testing is restricted (like Pressable).
- * Version: 1.5
+ * Version: 1.7
  * Author: Phill
  */
 
@@ -11,13 +11,170 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-04-04T19:41:54.370Z
+ * Generated on: 2025-04-05T02:42:32.422Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
  */
 
 if (defined('WP_CLI') && WP_CLI) {
+
+class MicroChaos_Thresholds {
+    // Response time thresholds (seconds)
+    const RESPONSE_TIME_GOOD = 1.0;    // Response times under 1 second are good
+    const RESPONSE_TIME_WARN = 2.0;    // Response times under 2 seconds are acceptable
+    const RESPONSE_TIME_CRITICAL = 3.0; // Response times over 3 seconds are critical
+
+    // Memory usage thresholds (percentage of PHP memory limit)
+    const MEMORY_USAGE_GOOD = 50;      // Under 50% of PHP memory limit is good
+    const MEMORY_USAGE_WARN = 70;      // Under 70% of PHP memory limit is acceptable
+    const MEMORY_USAGE_CRITICAL = 85;  // Over 85% of PHP memory limit is critical
+
+    // Error rate thresholds (percentage)
+    const ERROR_RATE_GOOD = 1;         // Under 1% error rate is good
+    const ERROR_RATE_WARN = 5;         // Under 5% error rate is acceptable
+    const ERROR_RATE_CRITICAL = 10;    // Over 10% error rate is critical
+
+    /**
+     * Format a value with color based on thresholds
+     *
+     * @param float $value The value to format
+     * @param string $type The type of metric (response_time, memory_usage, error_rate)
+     * @return string Formatted value with color codes
+     */
+    public static function format_value($value, $type) {
+        switch ($type) {
+            case 'response_time':
+                if ($value <= self::RESPONSE_TIME_GOOD) {
+                    return "\033[32m{$value}s\033[0m"; // Green
+                } elseif ($value <= self::RESPONSE_TIME_WARN) {
+                    return "\033[33m{$value}s\033[0m"; // Yellow
+                } else {
+                    return "\033[31m{$value}s\033[0m"; // Red
+                }
+                break;
+                
+            case 'memory_usage':
+                // Calculate percentage of PHP memory limit
+                $memory_limit = self::get_php_memory_limit_mb();
+                $percentage = ($value / $memory_limit) * 100;
+                
+                if ($percentage <= self::MEMORY_USAGE_GOOD) {
+                    return "\033[32m{$value} MB\033[0m"; // Green
+                } elseif ($percentage <= self::MEMORY_USAGE_WARN) {
+                    return "\033[33m{$value} MB\033[0m"; // Yellow
+                } else {
+                    return "\033[31m{$value} MB\033[0m"; // Red
+                }
+                break;
+                
+            case 'error_rate':
+                if ($value <= self::ERROR_RATE_GOOD) {
+                    return "\033[32m{$value}%\033[0m"; // Green
+                } elseif ($value <= self::ERROR_RATE_WARN) {
+                    return "\033[33m{$value}%\033[0m"; // Yellow
+                } else {
+                    return "\033[31m{$value}%\033[0m"; // Red
+                }
+                break;
+                
+            default:
+                return "{$value}";
+        }
+    }
+    
+    /**
+     * Get PHP memory limit in MB
+     *
+     * @return float Memory limit in MB
+     */
+    private static function get_php_memory_limit_mb() {
+        $memory_limit = ini_get('memory_limit');
+        $value = (int) $memory_limit;
+        
+        // Convert to MB if necessary
+        if (stripos($memory_limit, 'G') !== false) {
+            $value = $value * 1024;
+        } elseif (stripos($memory_limit, 'K') !== false) {
+            $value = $value / 1024;
+        } elseif (stripos($memory_limit, 'M') === false) {
+            // If no unit, assume bytes and convert to MB
+            $value = $value / 1048576;
+        }
+        
+        return $value > 0 ? $value : 128; // Default to 128MB if limit is unlimited (-1)
+    }
+    
+    /**
+     * Generate a simple ASCII bar chart
+     *
+     * @param array $values Array of values to chart
+     * @param string $title Chart title
+     * @param int $width Chart width in characters
+     * @return string ASCII chart
+     */
+    public static function generate_chart($values, $title, $width = 40) {
+        $max = max($values);
+        if ($max == 0) $max = 1; // Avoid division by zero
+        
+        $output = "\n   $title:\n";
+        
+        foreach ($values as $label => $value) {
+            $bar_length = round(($value / $max) * $width);
+            $bar = str_repeat('█', $bar_length);
+            $output .= sprintf("   %-10s [%-{$width}s] %s\n", $label, $bar, $value);
+        }
+        
+        return $output;
+    }
+    
+    /**
+     * Generate a simple distribution histogram
+     *
+     * @param array $times Array of response times
+     * @param int $buckets Number of buckets for distribution
+     * @return string ASCII histogram
+     */
+    public static function generate_histogram($times, $buckets = 5) {
+        if (empty($times)) {
+            return "";
+        }
+        
+        $min = min($times);
+        $max = max($times);
+        $range = $max - $min;
+        
+        // Avoid division by zero if all values are the same
+        if ($range == 0) {
+            $range = 0.1;
+        }
+        
+        $bucket_size = $range / $buckets;
+        $histogram = array_fill(0, $buckets, 0);
+        
+        foreach ($times as $time) {
+            $bucket = min($buckets - 1, floor(($time - $min) / $bucket_size));
+            $histogram[$bucket]++;
+        }
+        
+        $max_count = max($histogram);
+        $width = 30;
+        
+        $output = "\n   Response Time Distribution:\n";
+        
+        for ($i = 0; $i < $buckets; $i++) {
+            $lower = round($min + ($i * $bucket_size), 2);
+            $upper = round($min + (($i + 1) * $bucket_size), 2);
+            $count = $histogram[$i];
+            $bar_length = ($max_count > 0) ? round(($count / $max_count) * $width) : 0;
+            $bar = str_repeat('█', $bar_length);
+            
+            $output .= sprintf("   %5.2fs - %5.2fs [%-{$width}s] %d\n", $lower, $upper, $bar, $count);
+        }
+        
+        return $output;
+    }
+}
 
 class MicroChaos_Request_Generator {
     /**
@@ -45,6 +202,22 @@ class MicroChaos_Request_Generator {
     }
 
     /**
+     * Custom headers storage
+     *
+     * @var array
+     */
+    private $custom_headers = [];
+
+    /**
+     * Set custom headers
+     *
+     * @param array $headers Custom headers in key-value format
+     */
+    public function set_custom_headers($headers) {
+        $this->custom_headers = $headers;
+    }
+
+    /**
      * Fire an asynchronous batch of requests
      *
      * @param string $url Target URL
@@ -65,9 +238,20 @@ class MicroChaos_Request_Generator {
             curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($curl, CURLOPT_TIMEOUT, 10);
             curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
-            curl_setopt($curl, CURLOPT_HTTPHEADER, [
+            
+            // Prepare headers array
+            $headers = [
                 'User-Agent: ' . $this->get_random_user_agent(),
-            ]);
+            ];
+            
+            // Add custom headers if any
+            if (!empty($this->custom_headers)) {
+                foreach ($this->custom_headers as $name => $value) {
+                    $headers[] = "$name: $value";
+                }
+            }
+            
+            curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 
             // For cache header collection
             if ($this->collect_cache_headers) {
@@ -77,10 +261,9 @@ class MicroChaos_Request_Generator {
             // Handle body data
             if ($body) {
                 if ($this->is_json($body)) {
-                    curl_setopt($curl, CURLOPT_HTTPHEADER, [
-                        'User-Agent: ' . $this->get_random_user_agent(),
-                        'Content-Type: application/json',
-                    ]);
+                    // Add content-type header to existing headers
+                    $headers[] = 'Content-Type: application/json';
+                    curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
                     curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
                 } else {
                     curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
@@ -142,7 +325,7 @@ class MicroChaos_Request_Generator {
             }
 
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("→ {$code} in {$duration}s");
+                \WP_CLI::log("-> {$code} in {$duration}s");
             }
 
             $results[] = [
@@ -177,12 +360,21 @@ class MicroChaos_Request_Generator {
             'user-agent' => $this->get_random_user_agent(),
             'method' => $method,
         ];
+        
+        // Add custom headers if any
+        if (!empty($this->custom_headers)) {
+            $args['headers'] = [];
+            foreach ($this->custom_headers as $name => $value) {
+                $args['headers'][$name] = $value;
+            }
+        }
 
         if ($body) {
             if ($this->is_json($body)) {
-                $args['headers'] = [
-                    'Content-Type' => 'application/json',
-                ];
+                if (!isset($args['headers'])) {
+                    $args['headers'] = [];
+                }
+                $args['headers']['Content-Type'] = 'application/json';
                 $args['body'] = $body;
             } else {
                 // Handle URL-encoded form data or other types
@@ -222,7 +414,7 @@ class MicroChaos_Request_Generator {
         }
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("→ {$code} in {$duration}s");
+            \WP_CLI::log("-> {$code} in {$duration}s");
         }
 
         // Return result for reporting
@@ -464,8 +656,10 @@ class MicroChaos_Resource_Monitor {
 
     /**
      * Output resource summary to CLI
+     * 
+     * @param array|null $baseline Optional baseline data for comparison
      */
-    public function report_summary() {
+    public function report_summary($baseline = null) {
         $summary = $this->generate_summary();
 
         if (empty($summary)) {
@@ -473,12 +667,87 @@ class MicroChaos_Resource_Monitor {
         }
 
         if (class_exists('WP_CLI')) {
+            // Format memory with threshold colors
+            $avg_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['avg'], 'memory_usage');
+            $max_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['max'], 'memory_usage');
+            $avg_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['avg'], 'memory_usage');
+            $max_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['max'], 'memory_usage');
+            
             \WP_CLI::log("📊 Resource Utilization Summary:");
-            \WP_CLI::log("   Avg Memory Usage: {$summary['memory']['avg']} MB, Median: {$summary['memory']['median']} MB");
-            \WP_CLI::log("   Avg Peak Memory: {$summary['peak_memory']['avg']} MB, Median: {$summary['peak_memory']['median']} MB");
-            \WP_CLI::log("   Avg CPU Time (User): {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s");
-            \WP_CLI::log("   Avg CPU Time (System): {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s");
+            \WP_CLI::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");
+            \WP_CLI::log("   Peak Memory: Avg: {$avg_peak_formatted}, Median: {$summary['peak_memory']['median']} MB, Min: {$summary['peak_memory']['min']} MB, Max: {$max_peak_formatted}");
+            \WP_CLI::log("   CPU Time (User): Avg: {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s, Min: {$summary['user_time']['min']}s, Max: {$summary['user_time']['max']}s");
+            \WP_CLI::log("   CPU Time (System): Avg: {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s, Min: {$summary['system_time']['min']}s, Max: {$summary['system_time']['max']}s");
+            
+            // Add comparison with baseline if provided
+            if ($baseline) {
+                if (isset($baseline['memory'])) {
+                    $mem_avg_change = $baseline['memory']['avg'] > 0 
+                        ? (($summary['memory']['avg'] - $baseline['memory']['avg']) / $baseline['memory']['avg']) * 100 
+                        : 0;
+                    $mem_avg_change = round($mem_avg_change, 1);
+                    
+                    $change_indicator = $mem_avg_change <= 0 ? '↓' : '↑';
+                    $change_color = $mem_avg_change <= 0 ? "\033[32m" : "\033[31m";
+                    
+                    \WP_CLI::log("   Comparison to Baseline:");
+                    \WP_CLI::log("   - Avg Memory: {$change_color}{$change_indicator}{$mem_avg_change}%\033[0m vs {$baseline['memory']['avg']} MB");
+                    
+                    $mem_max_change = $baseline['memory']['max'] > 0 
+                        ? (($summary['memory']['max'] - $baseline['memory']['max']) / $baseline['memory']['max']) * 100 
+                        : 0;
+                    $mem_max_change = round($mem_max_change, 1);
+                    
+                    $change_indicator = $mem_max_change <= 0 ? '↓' : '↑';
+                    $change_color = $mem_max_change <= 0 ? "\033[32m" : "\033[31m";
+                    \WP_CLI::log("   - Max Memory: {$change_color}{$change_indicator}{$mem_max_change}%\033[0m vs {$baseline['memory']['max']} MB");
+                }
+            }
+            
+            // Add memory usage visualization
+            if (count($this->resource_results) >= 5) {
+                $chart_data = [
+                    'Memory' => $summary['memory']['avg'],
+                    'Peak' => $summary['peak_memory']['avg'],
+                    'MaxMem' => $summary['memory']['max'],
+                    'MaxPeak' => $summary['peak_memory']['max'],
+                ];
+                
+                $chart = MicroChaos_Thresholds::generate_chart($chart_data, "Memory Usage (MB)");
+                \WP_CLI::log($chart);
+            }
         }
+    }
+    
+    /**
+     * Save current results as baseline
+     * 
+     * @param string $name Optional name for the baseline
+     * @return array Baseline data
+     */
+    public function save_baseline($name = 'default') {
+        $baseline = $this->generate_summary();
+        
+        // Store in a transient or option for persistence
+        if (function_exists('set_transient')) {
+            set_transient('microchaos_resource_baseline_' . $name, $baseline, 86400 * 30); // 30 days
+        }
+        
+        return $baseline;
+    }
+    
+    /**
+     * Get saved baseline data
+     * 
+     * @param string $name Baseline name
+     * @return array|null Baseline data or null if not found
+     */
+    public function get_baseline($name = 'default') {
+        if (function_exists('get_transient')) {
+            return get_transient('microchaos_resource_baseline_' . $name);
+        }
+        
+        return null;
     }
 }
 
@@ -709,8 +978,10 @@ class MicroChaos_Reporting_Engine {
 
     /**
      * Report summary to CLI
+     * 
+     * @param array|null $baseline Optional baseline data for comparison
      */
-    public function report_summary() {
+    public function report_summary($baseline = null) {
         $summary = $this->generate_summary();
 
         if ($summary['count'] === 0) {
@@ -721,12 +992,84 @@ class MicroChaos_Reporting_Engine {
         }
 
         if (class_exists('WP_CLI')) {
+            // Calculate error rate
+            $error_rate = $summary['count'] > 0 ? round(($summary['errors'] / $summary['count']) * 100, 1) : 0;
+            
             \WP_CLI::log("📊 Load Test Summary:");
             \WP_CLI::log("   Total Requests: {$summary['count']}");
-            \WP_CLI::log("   Success: {$summary['success']} | Errors: {$summary['errors']}");
-            \WP_CLI::log("   Avg Time: {$summary['times']['avg']}s | Median: {$summary['times']['median']}s");
-            \WP_CLI::log("   Fastest: {$summary['times']['min']}s | Slowest: {$summary['times']['max']}s");
+            
+            $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate');
+            \WP_CLI::log("   Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
+            
+            // Format with threshold colors
+            $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['times']['avg'], 'response_time');
+            $median_time_formatted = MicroChaos_Thresholds::format_value($summary['times']['median'], 'response_time');
+            $max_time_formatted = MicroChaos_Thresholds::format_value($summary['times']['max'], 'response_time');
+            
+            \WP_CLI::log("   Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
+            \WP_CLI::log("   Fastest: {$summary['times']['min']}s | Slowest: {$max_time_formatted}");
+            
+            // Add comparison with baseline if provided
+            if ($baseline && isset($baseline['times'])) {
+                $avg_change = $baseline['times']['avg'] > 0 
+                    ? (($summary['times']['avg'] - $baseline['times']['avg']) / $baseline['times']['avg']) * 100 
+                    : 0;
+                $avg_change = round($avg_change, 1);
+                
+                $median_change = $baseline['times']['median'] > 0 
+                    ? (($summary['times']['median'] - $baseline['times']['median']) / $baseline['times']['median']) * 100 
+                    : 0;
+                $median_change = round($median_change, 1);
+                
+                $change_indicator = $avg_change <= 0 ? '↓' : '↑';
+                $change_color = $avg_change <= 0 ? "\033[32m" : "\033[31m";
+                
+                \WP_CLI::log("   Comparison to Baseline:");
+                \WP_CLI::log("   - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['times']['avg']}s");
+                
+                $change_indicator = $median_change <= 0 ? '↓' : '↑';
+                $change_color = $median_change <= 0 ? "\033[32m" : "\033[31m";
+                \WP_CLI::log("   - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['times']['median']}s");
+            }
+            
+            // Add response time distribution histogram
+            if (count($this->results) >= 10) {
+                $times = array_column($this->results, 'time');
+                $histogram = MicroChaos_Thresholds::generate_histogram($times);
+                \WP_CLI::log($histogram);
+            }
         }
+    }
+    
+    /**
+     * Save current results as baseline
+     * 
+     * @param string $name Optional name for the baseline
+     * @return array Baseline data
+     */
+    public function save_baseline($name = 'default') {
+        $baseline = $this->generate_summary();
+        
+        // Store in a transient or option for persistence
+        if (function_exists('set_transient')) {
+            set_transient('microchaos_baseline_' . $name, $baseline, 86400 * 30); // 30 days
+        }
+        
+        return $baseline;
+    }
+    
+    /**
+     * Get saved baseline data
+     * 
+     * @param string $name Baseline name
+     * @return array|null Baseline data or null if not found
+     */
+    public function get_baseline($name = 'default') {
+        if (function_exists('get_transient')) {
+            return get_transient('microchaos_baseline_' . $name);
+        }
+        
+        return null;
     }
 
     /**
@@ -806,7 +1149,7 @@ class MicroChaos_Commands {
      * 1. Decide the real-world traffic scenario you need to test (e.g., 20 concurrent hits
      * sustained, or a daily average of 30 hits/second at peak).
      *
-     * 2. Run the loopback test with at least 2–3× those numbers to see if resource usage climbs
+     * 2. Run the loopback test with at least 2-3x those numbers to see if resource usage climbs
      * to a point of concern.
      *
      * 3. Watch server-level metrics (PHP error logs, memory usage, CPU load) to see if you're hitting resource ceilings.
@@ -815,11 +1158,11 @@ class MicroChaos_Commands {
      *
      * [--endpoint=<endpoint>]
      * : The page to test. Options:
-     *     home       → /
-     *     shop       → /shop/
-     *     cart       → /cart/
-     *     checkout   → /checkout/
-     *     custom:/path → any relative path (e.g., custom:/my-page/)
+     *     home       -> /
+     *     shop       -> /shop/
+     *     cart       -> /cart/
+     *     checkout   -> /checkout/
+     *     custom:/path -> any relative path (e.g., custom:/my-page/)
      *
      * [--endpoints=<endpoint-list>]
      * : Comma-separated list of endpoints to rotate through (uses same format as --endpoint).
@@ -858,6 +1201,9 @@ class MicroChaos_Commands {
      * [--cookie=<cookie>]
      * : Set custom cookie(s) in name=value format. Use comma for multiple cookies.
      *
+     * [--header=<header>]
+     * : Set custom HTTP headers in name=value format. Use comma for multiple headers. Example: X-Test=123,Authorization=Bearer abc123
+     *
      * [--concurrency-mode=<mode>]
      * : Use 'async' to simulate concurrent requests in each burst. Default: serial
      *
@@ -872,6 +1218,12 @@ class MicroChaos_Commands {
      *
      * [--rotation-mode=<mode>]
      * : How to rotate through endpoints when multiple are specified. Options: serial, random. Default: serial.
+     *
+     * [--save-baseline=<name>]
+     * : Save the results of this test as a baseline for future comparisons (optional name).
+     *
+     * [--compare-baseline=<name>]
+     * : Compare results with a previously saved baseline (defaults to 'default').
      *
      * ## EXAMPLES
      *
@@ -908,8 +1260,17 @@ class MicroChaos_Commands {
      *     # Test with custom cookies
      *     wp microchaos loadtest --endpoint=home --count=50 --cookie="test_cookie=1,another_cookie=value"
      *
+     *     # Test with custom HTTP headers
+     *     wp microchaos loadtest --endpoint=home --count=50 --header="X-Test=true,Authorization=Bearer token123"
+     *
      *     # Test with endpoint rotation
      *     wp microchaos loadtest --endpoints=home,shop,cart --count=60 --rotation-mode=random
+     *
+     *     # Save test results as a baseline for future comparison
+     *     wp microchaos loadtest --endpoint=home --count=100 --save-baseline=homepage
+     *
+     *     # Compare with previously saved baseline
+     *     wp microchaos loadtest --endpoint=home --count=100 --compare-baseline=homepage
      *
      * @param array $args Command arguments
      * @param array $assoc_args Command options
@@ -936,6 +1297,7 @@ class MicroChaos_Commands {
         $method = strtoupper($assoc_args['method'] ?? 'GET');
         $body = $assoc_args['body'] ?? null;
         $custom_cookies = $assoc_args['cookie'] ?? null;
+        $custom_headers = $assoc_args['header'] ?? null;
         $rotation_mode = $assoc_args['rotation-mode'] ?? 'serial';
         $collect_cache_headers = isset($assoc_args['cache-headers']);
 
@@ -1056,27 +1418,42 @@ class MicroChaos_Commands {
             \WP_CLI::log("🍪 Added " . count($cookie_pairs) . " custom " .
                           (count($cookie_pairs) === 1 ? "cookie" : "cookies"));
         }
+        
+        // Process custom headers if specified
+        if ($custom_headers) {
+            $headers = [];
+            $header_pairs = array_map('trim', explode(',', $custom_headers));
+            
+            foreach ($header_pairs as $pair) {
+                list($name, $value) = array_map('trim', explode('=', $pair, 2));
+                $headers[$name] = $value;
+            }
+            
+            $request_generator->set_custom_headers($headers);
+            \WP_CLI::log("📝 Added " . count($header_pairs) . " custom " .
+                          (count($header_pairs) === 1 ? "header" : "headers"));
+        }
 
         \WP_CLI::log("🚀 MicroChaos Load Test Started");
 
         // Log the test configuration
         if (count($endpoint_list) === 1) {
-            \WP_CLI::log("→ URL: {$endpoint_list[0]['url']}");
+            \WP_CLI::log("-> URL: {$endpoint_list[0]['url']}");
         } else {
-            \WP_CLI::log("→ URLs: " . count($endpoint_list) . " endpoints (" .
+            \WP_CLI::log("-> URLs: " . count($endpoint_list) . " endpoints (" .
                           implode(', ', array_column($endpoint_list, 'slug')) . ") - Rotation mode: $rotation_mode");
         }
 
-        \WP_CLI::log("→ Method: $method");
+        \WP_CLI::log("-> Method: $method");
 
         if ($body) {
-            \WP_CLI::log("→ Body: " . (strlen($body) > 50 ? substr($body, 0, 47) . '...' : $body));
+            \WP_CLI::log("-> Body: " . (strlen($body) > 50 ? substr($body, 0, 47) . '...' : $body));
         }
 
-        \WP_CLI::log("→ Total: $count | Burst: $burst | Delay: {$delay}s");
+        \WP_CLI::log("-> Total: $count | Burst: $burst | Delay: {$delay}s");
 
         if ($collect_cache_headers) {
-            \WP_CLI::log("→ Cache header tracking enabled");
+            \WP_CLI::log("-> Cache header tracking enabled");
         }
 
         // Warm cache if specified
@@ -1176,12 +1553,38 @@ class MicroChaos_Commands {
             }
         }
 
+        // Handle baseline comparison if specified
+        $compare_baseline = isset($assoc_args['compare-baseline']) ? $assoc_args['compare-baseline'] : null;
+        $save_baseline = isset($assoc_args['save-baseline']) ? $assoc_args['save-baseline'] : null;
+        
+        // Default baseline name if provided without value
+        if ($compare_baseline === null && isset($assoc_args['compare-baseline'])) {
+            $compare_baseline = 'default';
+        }
+        
+        if ($save_baseline === null && isset($assoc_args['save-baseline'])) {
+            $save_baseline = 'default';
+        }
+        
+        // Load baseline for comparison if specified
+        $perf_baseline = $compare_baseline ? $reporting_engine->get_baseline($compare_baseline) : null;
+        $resource_baseline = $compare_baseline && $resource_logging ? $resource_monitor->get_baseline($compare_baseline) : null;
+        
         // Generate reports
-        $reporting_engine->report_summary();
+        $reporting_engine->report_summary($perf_baseline);
 
         // Report resource utilization if enabled
         if ($resource_logging) {
-            $resource_monitor->report_summary();
+            $resource_monitor->report_summary($resource_baseline);
+        }
+        
+        // Save baseline if specified
+        if ($save_baseline) {
+            $reporting_engine->save_baseline($save_baseline);
+            if ($resource_logging) {
+                $resource_monitor->save_baseline($save_baseline);
+            }
+            \WP_CLI::success("✅ Baseline '{$save_baseline}' saved.");
         }
 
         // Report cache headers if enabled

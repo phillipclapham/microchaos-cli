@@ -131,8 +131,10 @@ class MicroChaos_Resource_Monitor {
 
     /**
      * Output resource summary to CLI
+     * 
+     * @param array|null $baseline Optional baseline data for comparison
      */
-    public function report_summary() {
+    public function report_summary($baseline = null) {
         $summary = $this->generate_summary();
 
         if (empty($summary)) {
@@ -140,11 +142,86 @@ class MicroChaos_Resource_Monitor {
         }
 
         if (class_exists('WP_CLI')) {
+            // Format memory with threshold colors
+            $avg_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['avg'], 'memory_usage');
+            $max_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['max'], 'memory_usage');
+            $avg_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['avg'], 'memory_usage');
+            $max_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['max'], 'memory_usage');
+            
             \WP_CLI::log("📊 Resource Utilization Summary:");
-            \WP_CLI::log("   Avg Memory Usage: {$summary['memory']['avg']} MB, Median: {$summary['memory']['median']} MB");
-            \WP_CLI::log("   Avg Peak Memory: {$summary['peak_memory']['avg']} MB, Median: {$summary['peak_memory']['median']} MB");
-            \WP_CLI::log("   Avg CPU Time (User): {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s");
-            \WP_CLI::log("   Avg CPU Time (System): {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s");
+            \WP_CLI::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");
+            \WP_CLI::log("   Peak Memory: Avg: {$avg_peak_formatted}, Median: {$summary['peak_memory']['median']} MB, Min: {$summary['peak_memory']['min']} MB, Max: {$max_peak_formatted}");
+            \WP_CLI::log("   CPU Time (User): Avg: {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s, Min: {$summary['user_time']['min']}s, Max: {$summary['user_time']['max']}s");
+            \WP_CLI::log("   CPU Time (System): Avg: {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s, Min: {$summary['system_time']['min']}s, Max: {$summary['system_time']['max']}s");
+            
+            // Add comparison with baseline if provided
+            if ($baseline) {
+                if (isset($baseline['memory'])) {
+                    $mem_avg_change = $baseline['memory']['avg'] > 0 
+                        ? (($summary['memory']['avg'] - $baseline['memory']['avg']) / $baseline['memory']['avg']) * 100 
+                        : 0;
+                    $mem_avg_change = round($mem_avg_change, 1);
+                    
+                    $change_indicator = $mem_avg_change <= 0 ? '↓' : '↑';
+                    $change_color = $mem_avg_change <= 0 ? "\033[32m" : "\033[31m";
+                    
+                    \WP_CLI::log("   Comparison to Baseline:");
+                    \WP_CLI::log("   - Avg Memory: {$change_color}{$change_indicator}{$mem_avg_change}%\033[0m vs {$baseline['memory']['avg']} MB");
+                    
+                    $mem_max_change = $baseline['memory']['max'] > 0 
+                        ? (($summary['memory']['max'] - $baseline['memory']['max']) / $baseline['memory']['max']) * 100 
+                        : 0;
+                    $mem_max_change = round($mem_max_change, 1);
+                    
+                    $change_indicator = $mem_max_change <= 0 ? '↓' : '↑';
+                    $change_color = $mem_max_change <= 0 ? "\033[32m" : "\033[31m";
+                    \WP_CLI::log("   - Max Memory: {$change_color}{$change_indicator}{$mem_max_change}%\033[0m vs {$baseline['memory']['max']} MB");
+                }
+            }
+            
+            // Add memory usage visualization
+            if (count($this->resource_results) >= 5) {
+                $chart_data = [
+                    'Memory' => $summary['memory']['avg'],
+                    'Peak' => $summary['peak_memory']['avg'],
+                    'MaxMem' => $summary['memory']['max'],
+                    'MaxPeak' => $summary['peak_memory']['max'],
+                ];
+                
+                $chart = MicroChaos_Thresholds::generate_chart($chart_data, "Memory Usage (MB)");
+                \WP_CLI::log($chart);
+            }
         }
+    }
+    
+    /**
+     * Save current results as baseline
+     * 
+     * @param string $name Optional name for the baseline
+     * @return array Baseline data
+     */
+    public function save_baseline($name = 'default') {
+        $baseline = $this->generate_summary();
+        
+        // Store in a transient or option for persistence
+        if (function_exists('set_transient')) {
+            set_transient('microchaos_resource_baseline_' . $name, $baseline, 86400 * 30); // 30 days
+        }
+        
+        return $baseline;
+    }
+    
+    /**
+     * Get saved baseline data
+     * 
+     * @param string $name Baseline name
+     * @return array|null Baseline data or null if not found
+     */
+    public function get_baseline($name = 'default') {
+        if (function_exists('get_transient')) {
+            return get_transient('microchaos_resource_baseline_' . $name);
+        }
+        
+        return null;
     }
 }

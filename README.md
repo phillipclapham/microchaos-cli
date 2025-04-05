@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v1.5
+v1.7
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -79,7 +79,7 @@ This will generate a fresh single-file version in the `dist/` directory, ready f
 ## 🛠 Usage
 
 1. Decide the real-world traffic scenario you need to test (e.g., 20 concurrent hits sustained, or a daily average of 30 hits/second at peak).
-2. Run the loopback test with at least 2–3× those numbers to see if resource usage climbs to a point of concern.
+2. Run the loopback test with at least 2-3x those numbers to see if resource usage climbs to a point of concern.
 3. Watch server-level metrics (PHP error logs, memory usage, CPU load) to see if you're hitting resource ceilings.
 
 ```bash
@@ -104,6 +104,7 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 - `--auth=<email>` Run as a specific logged-in user
 - `--multi-auth=<email1,email2>` Rotate across multiple users
 - `--cookie=<name=value>` Set custom cookie(s), comma-separated for multiple
+- `--header=<name=value>` Set custom HTTP headers, comma-separated for multiple
 - `--warm-cache` Prime the cache before testing
 - `--flush-between` Flush cache before each burst
 - `--log-to=<relative path>` Log results to file under wp-content/
@@ -112,6 +113,8 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 - `--rampup` Gradually increase burst size to simulate organic load
 - `--resource-logging` Print memory and CPU usage during test
 - `--cache-headers` Parse cache headers and summarize hit/miss behavior
+- `--save-baseline=<name>` Save results as a baseline for future comparisons
+- `--compare-baseline=<name>` Compare results with a saved baseline
 
 ---
 
@@ -141,6 +144,12 @@ Add custom cookies to break caching
 wp microchaos loadtest --endpoint=home --count=50 --cookie="session_id=123,test_variation=B"
 ```
 
+Add custom HTTP headers to requests
+
+```bash
+wp microchaos loadtest --endpoint=home --count=50 --header="X-Test=true,Authorization=Bearer token123"
+```
+
 Simulate real users hitting checkout
 
 ```bash
@@ -159,6 +168,18 @@ Ramp-up traffic slowly over time
 wp microchaos loadtest --endpoint=shop --count=100 --rampup
 ```
 
+Save test results as a baseline for future comparison
+
+```bash
+wp microchaos loadtest --endpoint=home --count=100 --save-baseline=homepage
+```
+
+Compare with previously saved baseline
+
+```bash
+wp microchaos loadtest --endpoint=home --count=100 --compare-baseline=homepage
+```
+
 ---
 
 ## 📊 What You Get
@@ -166,8 +187,8 @@ wp microchaos loadtest --endpoint=shop --count=100 --rampup
 ### 🟢 Per-Request Log Output
 
 ```bash
-→ 200 in 0.0296s [EDGE_UPDATING] x-ac:3.dca_atomic_dca UPDATING
-→ 200 in 0.0303s [EDGE_STALE] x-ac:3.dca _atomic_dca STALE
+-> 200 in 0.0296s [EDGE_UPDATING] x-ac:3.dca_atomic_dca UPDATING
+-> 200 in 0.0303s [EDGE_STALE] x-ac:3.dca _atomic_dca STALE
 ```
 
 Each request is timestamped, status-coded, cache-labeled, and readable at a glance.
@@ -179,9 +200,14 @@ Each request is timestamped, status-coded, cache-labeled, and readable at a glan
 ```bash
 📊 Load Test Summary:
    Total Requests: 10
-   Success: 10 | Errors: 0
+   Success: 10 | Errors: 0 | Error Rate: 0%
    Avg Time: 0.0331s | Median: 0.0296s
    Fastest: 0.0278s | Slowest: 0.0567s
+   
+   Response Time Distribution:
+   0.03s - 0.04s [██████████████████████████████] 8
+   0.04s - 0.05s [█████] 1
+   0.05s - 0.06s [█████] 1
 ```
 
 ---
@@ -190,10 +216,16 @@ Each request is timestamped, status-coded, cache-labeled, and readable at a glan
 
 ```bash
 📊 Resource Utilization Summary:
-   Avg Memory Usage: 118.34 MB, Median: 118.34 MB
-   Avg Peak Memory: 118.76 MB, Median: 118.76 MB
-   Avg CPU Time (User): 1.01s, Median: 1.01s
-   Avg CPU Time (System): 0.33s, Median: 0.33s
+   Memory Usage: Avg: 118.34 MB, Median: 118.34 MB, Min: 96.45 MB, Max: 127.89 MB
+   Peak Memory: Avg: 118.76 MB, Median: 118.76 MB, Min: 102.32 MB, Max: 129.15 MB
+   CPU Time (User): Avg: 1.01s, Median: 1.01s, Min: 0.65s, Max: 1.45s
+   CPU Time (System): Avg: 0.33s, Median: 0.33s, Min: 0.12s, Max: 0.54s
+   
+   Memory Usage (MB):
+   Memory     [████████████████████████████████] 118.34
+   Peak       [████████████████████████████████████] 118.76
+   MaxMem     [██████████████████████████████████████████████] 127.89
+   MaxPeak    [███████████████████████████████████████████████] 129.15
 ```
 
 ---
@@ -216,6 +248,24 @@ Parsed and summarized directly from HTTP response headers—no deep instrumentat
 
 ---
 
+### 🔄 Baseline Comparison
+
+```bash
+📊 Load Test Summary:
+   Total Requests: 10
+   Success: 10 | Errors: 0 | Error Rate: 0%
+   Avg Time: 0.0254s | Median: 0.0238s
+   Fastest: 0.0212s | Slowest: 0.0387s
+   
+   Comparison to Baseline:
+   - Avg: ↓23.5% vs 0.0331s
+   - Median: ↓19.6% vs 0.0296s
+```
+
+Track performance improvements or regressions across changes.
+
+---
+
 ## 🧠 Design Philosophy
 
 "Improvisation > Perfection. Paradox is fuel."
@@ -230,11 +280,25 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
-- Add max/min CPU/memory usage tracking
-- Ability to send custom headers with requests
-- Test plans via JSON config (`wp microchaos plan`)
-- Response body matching/diffing capabilities
-- Enhanced export format options (CSV/JSON)
+- **Automated thresholds** - Add an option to auto-determine good/warning/critical thresholds based on first run data, making the colored output more meaningful for each specific environment. Thresholds would adjust based on the actual performance profile of the site being tested rather than using generic values.
+
+- **Resource trend tracking** - During longer tests, capture and visualize trends (not just averages) to identify if memory/CPU usage stabilizes or grows unbounded. This would help detect memory leaks or resource exhaustion issues that only appear over time but aren't visible in averages or medians.
+
+- **Integration hooks** - Add lightweight hooks for external monitoring tools to consume MicroChaos data (e.g., a status endpoint that New Relic/Grafana could poll). This would allow deeper correlation between the synthetic load and infrastructure-level metrics.
+
+- **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
+
+- **Session replay** - Record a real user session (all requests, headers, timing) and allow replaying it at scale to simulate actual user behavior patterns rather than synthetic single-endpoint tests.
+
+- **Headless WordPress** - Add `--bootstrap-only` mode that doesn't load full WordPress for more accurate core code testing. This would reduce overhead when testing specific components or API endpoints where the full WP stack isn't necessary.
+
+- **Test duration option** - Allow specifying a test duration instead of request count (e.g., "run for 5 minutes" vs "send 100 requests") to better simulate sustained load over time rather than burst-based testing.
+
+- **Progressive load testing** - Gradually increasing load until a specific failure threshold is reached, to determine breaking points and maximum capacity before performance degradation. Would help establish clear scaling recommendations.
+
+- **Snapshot comparison** - Save full detail snapshots that include all individual request data, not just summaries, for more granular analysis between test runs and historical trending.
+
+- **Auto-documentation** - Generate a simple HTML/Markdown report after tests with conclusions about site performance for easy sharing with team members or clients. Would include recommendations based on observed metrics and comparisons with industry benchmarks.
 
 ---
 

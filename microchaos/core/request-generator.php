@@ -39,6 +39,22 @@ class MicroChaos_Request_Generator {
     }
 
     /**
+     * Custom headers storage
+     *
+     * @var array
+     */
+    private $custom_headers = [];
+
+    /**
+     * Set custom headers
+     *
+     * @param array $headers Custom headers in key-value format
+     */
+    public function set_custom_headers($headers) {
+        $this->custom_headers = $headers;
+    }
+
+    /**
      * Fire an asynchronous batch of requests
      *
      * @param string $url Target URL
@@ -59,9 +75,20 @@ class MicroChaos_Request_Generator {
             curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($curl, CURLOPT_TIMEOUT, 10);
             curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
-            curl_setopt($curl, CURLOPT_HTTPHEADER, [
+            
+            // Prepare headers array
+            $headers = [
                 'User-Agent: ' . $this->get_random_user_agent(),
-            ]);
+            ];
+            
+            // Add custom headers if any
+            if (!empty($this->custom_headers)) {
+                foreach ($this->custom_headers as $name => $value) {
+                    $headers[] = "$name: $value";
+                }
+            }
+            
+            curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 
             // For cache header collection
             if ($this->collect_cache_headers) {
@@ -71,10 +98,9 @@ class MicroChaos_Request_Generator {
             // Handle body data
             if ($body) {
                 if ($this->is_json($body)) {
-                    curl_setopt($curl, CURLOPT_HTTPHEADER, [
-                        'User-Agent: ' . $this->get_random_user_agent(),
-                        'Content-Type: application/json',
-                    ]);
+                    // Add content-type header to existing headers
+                    $headers[] = 'Content-Type: application/json';
+                    curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
                     curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
                 } else {
                     curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
@@ -136,7 +162,7 @@ class MicroChaos_Request_Generator {
             }
 
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("→ {$code} in {$duration}s");
+                \WP_CLI::log("-> {$code} in {$duration}s");
             }
 
             $results[] = [
@@ -171,12 +197,21 @@ class MicroChaos_Request_Generator {
             'user-agent' => $this->get_random_user_agent(),
             'method' => $method,
         ];
+        
+        // Add custom headers if any
+        if (!empty($this->custom_headers)) {
+            $args['headers'] = [];
+            foreach ($this->custom_headers as $name => $value) {
+                $args['headers'][$name] = $value;
+            }
+        }
 
         if ($body) {
             if ($this->is_json($body)) {
-                $args['headers'] = [
-                    'Content-Type' => 'application/json',
-                ];
+                if (!isset($args['headers'])) {
+                    $args['headers'] = [];
+                }
+                $args['headers']['Content-Type'] = 'application/json';
                 $args['body'] = $body;
             } else {
                 // Handle URL-encoded form data or other types
@@ -216,7 +251,7 @@ class MicroChaos_Request_Generator {
         }
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("→ {$code} in {$duration}s");
+            \WP_CLI::log("-> {$code} in {$duration}s");
         }
 
         // Return result for reporting
