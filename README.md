@@ -65,6 +65,8 @@ If you've made changes to the modular components and want to rebuild the single-
 node build.js
 ```
 
+A PHP build script (build.php) is also available but deprecated and will be removed in a future version.
+
 This will generate a fresh single-file version in the `dist/` directory, ready for distribution. The build script:
 
 1. Extracts all component classes
@@ -279,6 +281,8 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 ---
 
 ## 🛠 Future Ideas
+
+- **Remove PHP build script** - Remove the deprecated build.php in favor of standardizing on the Node.js build script (build.js) for a single source of truth in the build process.
 
 - **Automated thresholds** - Add an option to auto-determine good/warning/critical thresholds based on first run data, making the colored output more meaningful for each specific environment. Thresholds would adjust based on the actual performance profile of the site being tested rather than using generic values.
 

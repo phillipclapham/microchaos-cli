@@ -1,10 +1,13 @@
 <?php
 /**
- * MicroChaos Build Script
+ * MicroChaos Build Script (PHP Version)
  *
  * This script compiles the modular version of MicroChaos into a single file for distribution.
  *
  * Usage: php build.php
+ * 
+ * DEPRECATION NOTICE: This PHP build script is deprecated and will be removed in a future version.
+ * Please use the Node.js build script (build.js) instead: `node build.js`
  */
 
 // Configuration
@@ -13,6 +16,7 @@ $outputFile = $outputDir . '/microchaos-cli.php';
 $sources = [
     'header' => __DIR__ . '/microchaos-cli.php',
     'components' => [
+        __DIR__ . '/microchaos/core/thresholds.php',
         __DIR__ . '/microchaos/core/request-generator.php',
         __DIR__ . '/microchaos/core/resource-monitor.php',
         __DIR__ . '/microchaos/core/cache-analyzer.php',
@@ -21,7 +25,8 @@ $sources = [
     ]
 ];
 
-echo "Building MicroChaos single-file distribution...\n";
+echo "Building MicroChaos single-file distribution (DEPRECATED PHP BUILD SCRIPT)...\n";
+echo "NOTE: This PHP build script is deprecated. Please use 'node build.js' instead.\n";
 
 // Create output directory if it doesn't exist
 if (!is_dir($outputDir)) {
@@ -49,9 +54,15 @@ foreach ($sources['components'] as $componentFile) {
     echo "Processing component: " . basename($componentFile) . "\n";
     $content = file_get_contents($componentFile);
 
-    // Extract just the class definition (remove PHP tags, includes, etc.)
-    $classPattern = '/class\s+([A-Za-z0-9_]+)[\s\n]*{(.+?)}\s*$/ms';
-    preg_match($classPattern, $content, $matches);
+    // Remove PHP opening tags, prevent direct access blocks, etc.
+    $cleanedContent = preg_replace('/^<\?php/', '', $content);
+    $cleanedContent = preg_replace('/\/\/ Prevent direct access[\s\S]+?exit;\s*\}/m', '', $cleanedContent);
+    $cleanedContent = preg_replace('/if \(!defined\(\'ABSPATH\'\)[\s\S]+?exit;\s*\}/m', '', $cleanedContent);
+    $cleanedContent = preg_replace('/if \(!defined\(\'WP_CLI\'\)[\s\S]+?exit;\s*\}/m', '', $cleanedContent);
+    
+    // Extract the class declaration and all its content
+    $classPattern = '/class\s+([A-Za-z0-9_]+)[\s\S]+?^}/ms';
+    preg_match($classPattern, $cleanedContent, $matches);
 
     if (isset($matches[0])) {
         $classContents[] = $matches[0];
