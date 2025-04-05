@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v1.7
+v1.8.1
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -94,28 +94,55 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 
 ## 🔧 CLI Options
 
+### Basic Options
+
 - `--endpoint=<slug>` home, shop, cart, checkout, or custom:/my-path
 - `--endpoints=<endpoint-list>` Comma-separated list of endpoints to rotate through
 - `--count=<n>` Total requests to send (default: 100)
 - `--duration=<minutes>` Run test for specified duration instead of fixed request count
 - `--burst=<n>` Requests per burst (default: 10)
 - `--delay=<seconds>` Delay between bursts (default: 2)
+
+### Request Configuration
+
 - `--method=<method>` HTTP method to use (GET, POST, PUT, DELETE, etc.)
 - `--body=<data>` POST/PUT body (string, JSON, or file:path.json)
 - `--auth=<email>` Run as a specific logged-in user
 - `--multi-auth=<email1,email2>` Rotate across multiple users
 - `--cookie=<name=value>` Set custom cookie(s), comma-separated for multiple
 - `--header=<name=value>` Set custom HTTP headers, comma-separated for multiple
+
+### Test Behavior
+
 - `--warm-cache` Prime the cache before testing
 - `--flush-between` Flush cache before each burst
 - `--log-to=<relative path>` Log results to file under wp-content/
 - `--concurrency-mode=async` Use curl_multi_exec() for parallel bursts
 - `--rotation-mode=<mode>` Control endpoint rotation (serial, random)
 - `--rampup` Gradually increase burst size to simulate organic load
+
+### Monitoring & Reporting
+
 - `--resource-logging` Print memory and CPU usage during test
 - `--cache-headers` Parse cache headers and summarize hit/miss behavior
-- `--save-baseline=<name>` Save results as a baseline for future comparisons
-- `--compare-baseline=<name>` Compare results with a saved baseline
+- `--save-baseline=<n>` Save results as a baseline for future comparisons
+- `--compare-baseline=<n>` Compare results with a saved baseline
+
+### Progressive Load Testing
+
+- `--progressive` Run in progressive load testing mode to automatically find capacity limits
+- `--progressive-start=<n>` Initial concurrency level for progressive testing (default: 5)
+- `--progressive-step=<n>` Step size to increase concurrency in progressive testing (default: 5)
+- `--progressive-max=<n>` Maximum concurrency to try in progressive testing (default: 100)
+- `--threshold-response-time=<s>` Response time threshold in seconds (default: 3.0)
+- `--threshold-error-rate=<p>` Error rate threshold in percentage (default: 10)
+- `--threshold-memory=<p>` Memory usage threshold in percentage (default: 85)
+
+### Threshold Calibration
+
+- `--auto-thresholds` Automatically calibrate thresholds based on test results
+- `--auto-thresholds-profile=<name>` Profile name to save calibrated thresholds (default: 'default')
+- `--use-thresholds=<profile>` Use previously saved thresholds for reporting
 
 ---
 
@@ -185,6 +212,30 @@ Run a test for a specific duration instead of request count
 
 ```bash
 wp microchaos loadtest --endpoint=home --duration=5 --burst=15 --resource-logging
+```
+
+Run progressive load testing to find capacity limits
+
+```bash
+wp microchaos loadtest --endpoint=home --progressive --resource-logging
+```
+
+Run progressive load testing with custom thresholds and limits
+
+```bash
+wp microchaos loadtest --endpoint=home --progressive --threshold-response-time=2 --progressive-max=150
+```
+
+Auto-calibrate thresholds based on the site's current performance
+
+```bash
+wp microchaos loadtest --endpoint=home --count=50 --auto-thresholds
+```
+
+Run a test with previously calibrated thresholds
+
+```bash
+wp microchaos loadtest --endpoint=home --count=100 --use-thresholds=homepage
 ```
 
 ---
@@ -273,6 +324,29 @@ Track performance improvements or regressions across changes.
 
 ---
 
+### 📈 Progressive Load Testing Results
+
+```bash
+📊 Progressive Load Test Results:
+   Total Requests Fired: 312
+   💥 Breaking Point: 40 concurrent requests
+   💥 Reason: Response time threshold exceeded (3.254s > 3.0s)
+   ✓ Recommended Maximum Capacity: 32 concurrent requests
+
+📈 Final Level Performance:
+   Total Requests: 40
+   Success: 36 | Errors: 4 | Error Rate: 10%
+   Avg Time: 3.254s | Median: 3.126s
+   Fastest: 1.854s | Slowest: 5.387s
+
+   Memory Usage: Avg: 92.45 MB, Median: 92.45 MB, Min: 64.12 MB, Max: 103.78 MB
+   Peak Memory: Avg: 94.32 MB, Median: 94.32 MB, Min: 72.56 MB, Max: 107.41 MB
+```
+
+Automatically determine maximum capacity and recommended concurrent user limits.
+
+---
+
 ## 🧠 Design Philosophy
 
 "Improvisation > Perfection. Paradox is fuel."
@@ -287,19 +361,13 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
-- **Automated thresholds** - Add an option to auto-determine good/warning/critical thresholds based on first run data, making the colored output more meaningful for each specific environment. Thresholds would adjust based on the actual performance profile of the site being tested rather than using generic values.
+- **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
 
 - **Resource trend tracking** - During longer tests, capture and visualize trends (not just averages) to identify if memory/CPU usage stabilizes or grows unbounded. This would help detect memory leaks or resource exhaustion issues that only appear over time but aren't visible in averages or medians.
 
-- **Integration hooks** - Add lightweight hooks for external monitoring tools to consume MicroChaos data (e.g., a status endpoint that New Relic/Grafana could poll). This would allow deeper correlation between the synthetic load and infrastructure-level metrics.
-
-- **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
+- **Integration hooks** - Add lightweight hooks for external monitoring tools to consume MicroChaos data (e.g., a status endpoint that New Relic/Grafana could poll). This would allow deeper correlation between the synthetic load and infrastructure-level metrics. We will begin with WP Cloud Insights (lightweight Grafana) integration and do this by using PHP error logging to capture data for monitoring in Cloud Insights.
 
 - **Session replay** - Record a real user session (all requests, headers, timing) and allow replaying it at scale to simulate actual user behavior patterns rather than synthetic single-endpoint tests.
-
-- **Headless WordPress** - Add `--bootstrap-only` mode that doesn't load full WordPress for more accurate core code testing. This would reduce overhead when testing specific components or API endpoints where the full WP stack isn't necessary.
-
-- **Progressive load testing** - Gradually increasing load until a specific failure threshold is reached, to determine breaking points and maximum capacity before performance degradation. Would help establish clear scaling recommendations.
 
 - **Snapshot comparison** - Save full detail snapshots that include all individual request data, not just summaries, for more granular analysis between test runs and historical trending.
 

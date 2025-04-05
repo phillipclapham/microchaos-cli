@@ -133,9 +133,11 @@ class MicroChaos_Resource_Monitor {
      * Output resource summary to CLI
      * 
      * @param array|null $baseline Optional baseline data for comparison
+     * @param array|null $provided_summary Optional pre-generated summary
+     * @param string|null $threshold_profile Optional threshold profile to use for formatting
      */
-    public function report_summary($baseline = null) {
-        $summary = $this->generate_summary();
+    public function report_summary($baseline = null, $provided_summary = null, $threshold_profile = null) {
+        $summary = $provided_summary ?: $this->generate_summary();
 
         if (empty($summary)) {
             return;
@@ -143,10 +145,10 @@ class MicroChaos_Resource_Monitor {
 
         if (class_exists('WP_CLI')) {
             // Format memory with threshold colors
-            $avg_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['avg'], 'memory_usage');
-            $max_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['max'], 'memory_usage');
-            $avg_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['avg'], 'memory_usage');
-            $max_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['max'], 'memory_usage');
+            $avg_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['avg'], 'memory_usage', $threshold_profile);
+            $max_mem_formatted = MicroChaos_Thresholds::format_value($summary['memory']['max'], 'memory_usage', $threshold_profile);
+            $avg_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['avg'], 'memory_usage', $threshold_profile);
+            $max_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['max'], 'memory_usage', $threshold_profile);
             
             \WP_CLI::log("📊 Resource Utilization Summary:");
             \WP_CLI::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");

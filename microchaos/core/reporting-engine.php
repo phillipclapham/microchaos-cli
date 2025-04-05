@@ -27,6 +27,13 @@ class MicroChaos_Reporting_Engine {
     public function __construct() {
         $this->results = [];
     }
+    
+    /**
+     * Reset results array (useful for progressive testing)
+     */
+    public function reset_results() {
+        $this->results = [];
+    }
 
     /**
      * Add a result
@@ -78,6 +85,13 @@ class MicroChaos_Reporting_Engine {
                 'count' => 0,
                 'success' => 0,
                 'errors' => 0,
+                'error_rate' => 0,
+                'timing' => [
+                    'avg' => 0,
+                    'median' => 0,
+                    'min' => 0,
+                    'max' => 0,
+                ],
             ];
         }
 
@@ -92,12 +106,14 @@ class MicroChaos_Reporting_Engine {
 
         $successes = count(array_filter($this->results, fn($r) => $r['code'] === 200));
         $errors = $count - $successes;
+        $error_rate = $count > 0 ? round(($errors / $count) * 100, 1) : 0;
 
         return [
             'count' => $count,
             'success' => $successes,
             'errors' => $errors,
-            'times' => [
+            'error_rate' => $error_rate,
+            'timing' => [
                 'avg' => $avg,
                 'median' => $median,
                 'min' => $min,
@@ -110,9 +126,11 @@ class MicroChaos_Reporting_Engine {
      * Report summary to CLI
      * 
      * @param array|null $baseline Optional baseline data for comparison
+     * @param array|null $provided_summary Optional pre-generated summary (useful for progressive tests)
+     * @param string|null $threshold_profile Optional threshold profile to use for formatting
      */
-    public function report_summary($baseline = null) {
-        $summary = $this->generate_summary();
+    public function report_summary($baseline = null, $provided_summary = null, $threshold_profile = null) {
+        $summary = $provided_summary ?: $this->generate_summary();
 
         if ($summary['count'] === 0) {
             if (class_exists('WP_CLI')) {
@@ -122,32 +140,31 @@ class MicroChaos_Reporting_Engine {
         }
 
         if (class_exists('WP_CLI')) {
-            // Calculate error rate
-            $error_rate = $summary['count'] > 0 ? round(($summary['errors'] / $summary['count']) * 100, 1) : 0;
+            $error_rate = $summary['error_rate'];
             
             \WP_CLI::log("📊 Load Test Summary:");
             \WP_CLI::log("   Total Requests: {$summary['count']}");
             
-            $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate');
+            $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate', $threshold_profile);
             \WP_CLI::log("   Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
             
             // Format with threshold colors
-            $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['times']['avg'], 'response_time');
-            $median_time_formatted = MicroChaos_Thresholds::format_value($summary['times']['median'], 'response_time');
-            $max_time_formatted = MicroChaos_Thresholds::format_value($summary['times']['max'], 'response_time');
+            $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time', $threshold_profile);
+            $median_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['median'], 'response_time', $threshold_profile);
+            $max_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['max'], 'response_time', $threshold_profile);
             
             \WP_CLI::log("   Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
-            \WP_CLI::log("   Fastest: {$summary['times']['min']}s | Slowest: {$max_time_formatted}");
+            \WP_CLI::log("   Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
             
             // Add comparison with baseline if provided
-            if ($baseline && isset($baseline['times'])) {
-                $avg_change = $baseline['times']['avg'] > 0 
-                    ? (($summary['times']['avg'] - $baseline['times']['avg']) / $baseline['times']['avg']) * 100 
+            if ($baseline && isset($baseline['timing'])) {
+                $avg_change = $baseline['timing']['avg'] > 0 
+                    ? (($summary['timing']['avg'] - $baseline['timing']['avg']) / $baseline['timing']['avg']) * 100 
                     : 0;
                 $avg_change = round($avg_change, 1);
                 
-                $median_change = $baseline['times']['median'] > 0 
-                    ? (($summary['times']['median'] - $baseline['times']['median']) / $baseline['times']['median']) * 100 
+                $median_change = $baseline['timing']['median'] > 0 
+                    ? (($summary['timing']['median'] - $baseline['timing']['median']) / $baseline['timing']['median']) * 100 
                     : 0;
                 $median_change = round($median_change, 1);
                 
@@ -155,11 +172,11 @@ class MicroChaos_Reporting_Engine {
                 $change_color = $avg_change <= 0 ? "\033[32m" : "\033[31m";
                 
                 \WP_CLI::log("   Comparison to Baseline:");
-                \WP_CLI::log("   - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['times']['avg']}s");
+                \WP_CLI::log("   - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
                 
                 $change_indicator = $median_change <= 0 ? '↓' : '↑';
                 $change_color = $median_change <= 0 ? "\033[32m" : "\033[31m";
-                \WP_CLI::log("   - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['times']['median']}s");
+                \WP_CLI::log("   - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
             }
             
             // Add response time distribution histogram
