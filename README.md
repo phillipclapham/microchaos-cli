@@ -408,8 +408,6 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 - **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
 
-- **Resource trend tracking** - During longer tests, capture and visualize trends (not just averages) to identify if memory/CPU usage stabilizes or grows unbounded. This would help detect memory leaks or resource exhaustion issues that only appear over time but aren't visible in averages or medians.
-
 - **Snapshot comparison** - Save full detail snapshots that include all individual request data, not just summaries, for more granular analysis between test runs and historical trending.
 
 ---
