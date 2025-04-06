@@ -83,13 +83,13 @@ wp microchaos paralleltest [--file=<path>] [--plan=<json>] [--workers=<number>] 
 - [x] Create test execution logic for individual worker
 
 ### Phase 3: Execution & Results Collection (Session 3)
-- [ ] Design progress reporting system
-- [ ] Implement results collection and aggregation
-- [ ] Create error handling and recovery mechanism
-- [ ] Build timeout management system
+- [x] Design progress reporting system
+- [x] Implement results collection and aggregation
+- [x] Create error handling and recovery mechanism
+- [x] Build timeout management system
 
 ### Phase 4: Reporting & Output (Session 4)
-- [ ] Implement real-time progress display
+- [x] Implement real-time progress display
 - [ ] Create summary report generation
 - [ ] Format output based on `--output` parameter
 - [ ] Add detailed results storage option
@@ -228,14 +228,127 @@ The next session will focus on Phase 3: Execution & Results Collection. Here are
 - Create mechanism to abort long-running jobs
 - Handle timeout notification and reporting
 
-### Session 3 (Date: __________)
+### Session 3 (Date: 4/6/2025)
 - Tasks completed:
-  - 
+  - Designed and implemented an advanced progress reporting system with real-time updates
+  - Created an interactive progress bar with ETA calculation and job status display
+  - Implemented worker health monitoring and stalled worker detection
+  - Added results collection and aggregation by test plan with statistical analysis
+  - Implemented threshold checking against test plan criteria
+  - Added error handling and recovery for failed jobs and workers
+  - Built timeout management at global test and per-job levels
+  - Integrated with existing reporting components (MicroChaos_Reporting_Engine)
+  - Added resource monitoring with trend analysis
+  - Implemented signal handling for graceful shutdown
+  - Added authentication support for endpoints
+  - Added export capability for test results
+  - Created detailed logs for troubleshooting
+  - Ensured command works correctly in both modular and single-file builds
+  - Successfully built and tested the implementation
+
+#### Implementation Details
+- **Progress Reporting System**:
+  - Created an interactive, color-coded progress bar that updates in real-time
+  - Implemented ETA calculation based on completed jobs and processing rates
+  - Added dynamic job status display showing currently executing jobs
+  - Implemented stalled worker detection to identify potentially hung processes
+
+- **Results Collection and Analysis**:
+  - Developed a system to collect and group results by test plan
+  - Implemented statistical analysis for response times (min, max, avg, median)
+  - Added error rate calculation and reporting
+  - Created threshold validation against user-defined performance criteria
+
+- **Error Handling and Recovery**:
+  - Implemented worker health checks to detect stalled or crashed processes
+  - Added job failure handling with detailed logging
+  - Created robust file locking for inter-process communication
+  - Implemented graceful termination on SIGINT/SIGTERM
+
+- **Timeout Management**:
+  - Added global test execution timeout parameter
+  - Implemented per-job timeout tracking
+  - Created notification system for long-running jobs
+  - Added built-in recovery for timed-out operations
+
+- **Resource Monitoring**:
+  - Integrated with resource monitor for memory and CPU tracking
+  - Implemented trend analysis to identify resource leaks
+  - Added visualization of resource usage patterns
+
+- **Command-Line Interface**:
+  - Enhanced parameters with clear documentation
+  - Added export parameter for storing results externally
+  - Implemented detailed progress and results display
+
+- **Authentication**:
+  - Added support for basic authentication
+  - Implemented custom headers support for API testing
+
 - Next steps:
-  - 
+  - Complete Phase 4: Format output based on the --output parameter
+  - Enhance summary report generation for different output formats (JSON, CSV, table)
+  - Add more detailed results storage options
+  - Implement optional callback URL for external notifications
+
+### Session 4 Planning
+The next session will focus on Phase 4: Reporting & Output. Here are the key areas that need to be addressed:
+
+#### Summary Report Generation
+- Create comprehensive summary report generation
+- Format data by test plan and overall
+- Implement different detail levels (summary vs detailed)
+- Add visualization options for results (ASCII charts)
+
+#### Output Format Options
+- Implement different output formats based on the --output parameter
+- Support table format (default) with formatting for CLI
+- Support JSON format for machine consumption
+- Support CSV format for importing into spreadsheets
+
+#### Detailed Results Storage
+- Allow exporting full results to file
+- Support different file formats (JSON, CSV)
+- Include all metrics and request details
+- Add options to limit detail level of exports
+
+#### Enhanced Reporting Features
+- Add percentile calculations (95th, 99th percentiles)
+- Implement comparison with saved baselines
+- Add performance scoring based on thresholds
+- Enable callbacks to external monitoring systems
+
+#### Technical Notes for Phase 4 Implementation
+- Build on the existing `$results_summary` structure in the `MicroChaos_ParallelTest` class
+- Extend `analyze_results()` method to calculate additional metrics like percentiles
+- Create format-specific output methods (for JSON, table, CSV)
+- Leverage the existing reporting-engine.php for additional functionality
+- Use batch processing for large result sets to maintain performance
+- Consider adding a callback URL parameter for external monitoring systems
+
+#### Key Code Areas for Phase 4
+1. **Format Handling**:
+   - Extend the `output_format` parameter handling in the `run()` method
+   - Create format-specific transformer methods for each output type
+
+2. **Results Processing**:
+   - Extend threshold checking to include more metrics
+   - Add methods for percentile calculations (95th, 99th)
+   - Implement comparison with baseline results
+
+3. **Output Generation**:
+   - Create specialized output methods for each format
+   - Implement proper table formatting for CLI display
+   - Add JSON schema documentation for API consumers
+
+4. **File Export**:
+   - Enhance `export_results()` to support multiple formats
+   - Add options for controlling export detail level
+   - Implement chunked file writing for large result sets
 
 ### Session 4 (Date: __________)
 - Tasks completed:
   - 
 - Next steps:
+  - 
   - 

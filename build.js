@@ -84,8 +84,7 @@ compiledCode += "\n\n";
 
 // Add the WP-CLI command registration
 compiledCode += "    // Register the MicroChaos WP-CLI command\n";
-compiledCode +=
-  "    WP_CLI::add_command('microchaos', 'MicroChaos_Commands');\n";
+compiledCode += "    WP_CLI::add_command('microchaos', 'MicroChaos_Commands');\n";
 compiledCode += "}\n";
 
 // Write the compiled code to the output file
