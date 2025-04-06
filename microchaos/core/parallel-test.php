@@ -115,6 +115,24 @@ class MicroChaos_ParallelTest {
      * 
      * [--export=<path>]
      * : Export results to specified file path (relative to wp-content directory)
+     * 
+     * [--export-format=<format>]
+     * : Format for exporting results. Options: json, csv. Default: json
+     * 
+     * [--export-detail=<level>]
+     * : Detail level for exported results. Options: summary, full. Default: summary
+     * 
+     * [--percentiles=<list>]
+     * : Comma-separated list of percentiles to calculate (e.g., 90,95,99). Default: 95,99
+     * 
+     * [--baseline=<name>]
+     * : Compare results with a previously saved baseline
+     * 
+     * [--save-baseline=<name>]
+     * : Save current results as a baseline for future comparisons
+     * 
+     * [--callback-url=<url>]
+     * : Send test results to this URL upon completion (HTTP POST)
      *
      * ## EXAMPLES
      *
@@ -135,6 +153,16 @@ class MicroChaos_ParallelTest {
      *     
      *     # Run parallel tests and export results to a file
      *     wp microchaos paralleltest --file=test-plans.json --export=microchaos/results.json
+     *     
+     *     # Run tests and export results with detailed information
+     *     wp microchaos paralleltest --file=test-plans.json --export=results.csv --export-format=csv --export-detail=full
+     *     
+     *     # Calculate additional percentiles and include them in results
+     *     wp microchaos paralleltest --file=test-plans.json --percentiles=50,75,90,95,99
+     *     
+     *     # Save results as baseline and compare with previous baseline
+     *     wp microchaos paralleltest --file=test-plans.json --save-baseline=api-test
+     *     wp microchaos paralleltest --file=test-plans.json --baseline=api-test
      *
      * @param array $args Command arguments
      * @param array $assoc_args Command options
@@ -147,6 +175,14 @@ class MicroChaos_ParallelTest {
         $this->output_format = $assoc_args['output'] ?? 'table';
         $this->global_timeout = intval($assoc_args['timeout'] ?? 600);
         $export_path = $assoc_args['export'] ?? null;
+        $export_format = $assoc_args['export-format'] ?? 'json';
+        $export_detail = $assoc_args['export-detail'] ?? 'summary';
+        $percentiles = isset($assoc_args['percentiles']) ? 
+            array_map('intval', explode(',', $assoc_args['percentiles'])) : 
+            [95, 99];
+        $baseline = $assoc_args['baseline'] ?? null;
+        $save_baseline = $assoc_args['save-baseline'] ?? null;
+        $callback_url = $assoc_args['callback-url'] ?? null;
 
         // Validate input parameters
         if (!$file_path && !$json_plan) {
@@ -175,8 +211,21 @@ class MicroChaos_ParallelTest {
         \WP_CLI::log("-> Test Plans: " . count($this->test_plans));
         \WP_CLI::log("-> Workers: " . $this->workers);
         \WP_CLI::log("-> Timeout: " . $this->global_timeout . " seconds");
+        \WP_CLI::log("-> Output Format: " . $this->output_format);
         if ($export_path) {
-            \WP_CLI::log("-> Export Path: " . $export_path);
+            \WP_CLI::log("-> Export: " . $export_path . " (Format: " . $export_format . ", Detail: " . $export_detail . ")");
+        }
+        if ($percentiles) {
+            \WP_CLI::log("-> Percentiles: " . implode(', ', $percentiles));
+        }
+        if ($baseline) {
+            \WP_CLI::log("-> Comparing with baseline: " . $baseline);
+        }
+        if ($save_baseline) {
+            \WP_CLI::log("-> Will save results as baseline: " . $save_baseline);
+        }
+        if ($callback_url) {
+            \WP_CLI::log("-> Results will be sent to: " . $callback_url);
         }
 
         // Display test plan summary
@@ -227,9 +276,33 @@ class MicroChaos_ParallelTest {
         // Cleanup temp files and analyze results
         $this->cleanup_temp_files();
         
+        // Calculate additional percentiles if specified
+        if (!empty($percentiles)) {
+            $this->calculate_percentiles($percentiles);
+        }
+        
+        // Load baseline for comparison if specified
+        $baseline_data = null;
+        if ($baseline) {
+            $baseline_data = $this->load_baseline($baseline);
+        }
+        
+        // Format and display results based on output format
+        $this->output_formatted_results($baseline_data);
+        
+        // Save as baseline if requested
+        if ($save_baseline) {
+            $this->save_baseline($save_baseline);
+        }
+        
         // Export results if requested
         if ($export_path) {
-            $this->export_results($export_path);
+            $this->export_results($export_path, $export_format, $export_detail);
+        }
+        
+        // Send results to callback URL if specified
+        if ($callback_url) {
+            $this->send_results_to_callback($callback_url);
         }
         
         // Log test completion to integration logger
@@ -239,7 +312,7 @@ class MicroChaos_ParallelTest {
         );
         
         \WP_CLI::success("🎉 Parallel Test Execution Complete");
-        \WP_CLI::log("🏗️ Phase 3 implementation completed: Execution & Results Collection");
+        \WP_CLI::log("🏗️ Phase 4 implementation completed: Reporting & Output");
     }
     
     /**
@@ -274,27 +347,873 @@ class MicroChaos_ParallelTest {
      * Export results to a file in the specified format
      * 
      * @param string $export_path Path to export file (relative to wp-content)
+     * @param string $format Export format (json, csv)
+     * @param string $detail_level Detail level (summary, full)
      * @return bool Success status
      */
-    private function export_results($export_path) {
-        $format = pathinfo($export_path, PATHINFO_EXTENSION);
+    private function export_results($export_path, $format = 'json', $detail_level = 'summary') {
         if (!in_array($format, ['json', 'csv'])) {
-            $format = 'json'; // Default to JSON if extension not recognized
+            \WP_CLI::warning("Unsupported export format '{$format}', defaulting to json");
+            $format = 'json';
+        }
+        
+        if (!in_array($detail_level, ['summary', 'full'])) {
+            \WP_CLI::warning("Unsupported detail level '{$detail_level}', defaulting to summary");
+            $detail_level = 'summary';
         }
         
         // Create reporting engine for export
         $reporting_engine = new MicroChaos_Reporting_Engine();
         $reporting_engine->add_results($this->results);
         
-        $success = $reporting_engine->export_results($format, $export_path);
+        // Format output path
+        $full_export_path = trailingslashit(WP_CONTENT_DIR) . ltrim($export_path, '/');
+        $dir = dirname($full_export_path);
+        
+        // Ensure directory exists
+        if (!file_exists($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        
+        // Export based on format and detail level
+        if ($format === 'json') {
+            if ($detail_level === 'summary') {
+                $data = json_encode([
+                    'meta' => [
+                        'timestamp' => date('Y-m-d H:i:s'),
+                        'test_plans' => count($this->test_plans),
+                        'workers' => $this->workers,
+                        'total_requests' => count($this->results)
+                    ],
+                    'summary' => $this->results_summary,
+                ], JSON_PRETTY_PRINT);
+            } else {
+                $data = json_encode([
+                    'meta' => [
+                        'timestamp' => date('Y-m-d H:i:s'),
+                        'test_plans' => count($this->test_plans),
+                        'workers' => $this->workers,
+                        'total_requests' => count($this->results)
+                    ],
+                    'summary' => $this->results_summary,
+                    'results' => $this->results,
+                    'config' => [
+                        'test_plans' => $this->test_plans,
+                        'job_count' => count($this->job_queue),
+                        'parallel_supported' => $this->parallel_supported
+                    ]
+                ], JSON_PRETTY_PRINT);
+            }
+            
+            $success = (bool) file_put_contents($full_export_path, $data);
+        } else {
+            // CSV format
+            $fp = fopen($full_export_path, 'w');
+            if (!$fp) {
+                \WP_CLI::error("Could not open file for writing: " . $full_export_path);
+                return false;
+            }
+            
+            if ($detail_level === 'summary') {
+                // Write summary CSV
+                // Headers
+                fputcsv($fp, ['Test Plan', 'Requests', 'Success', 'Errors', 'Error Rate', 'Avg Time', 'Median Time', 'Min Time', 'Max Time']);
+                
+                // Add overall results first
+                if (isset($this->results_summary['overall'])) {
+                    $overall = $this->results_summary['overall'];
+                    fputcsv($fp, [
+                        'OVERALL',
+                        $overall['count'],
+                        $overall['success'],
+                        $overall['errors'],
+                        $overall['error_rate'] . '%',
+                        $overall['timing']['avg'],
+                        $overall['timing']['median'],
+                        $overall['timing']['min'],
+                        $overall['timing']['max']
+                    ]);
+                }
+                
+                // Add individual test plan results
+                foreach ($this->results_summary as $plan_name => $summary) {
+                    if ($plan_name === 'overall') continue;
+                    
+                    fputcsv($fp, [
+                        $plan_name,
+                        $summary['count'],
+                        $summary['success'],
+                        $summary['errors'],
+                        $summary['error_rate'] . '%',
+                        $summary['timing']['avg'],
+                        $summary['timing']['median'],
+                        $summary['timing']['min'],
+                        $summary['timing']['max']
+                    ]);
+                }
+            } else {
+                // Detailed CSV with all results
+                // Headers for detailed results
+                $headers = ['Job ID', 'Plan Name', 'Worker ID', 'Timestamp', 'URL', 'Status Code', 'Response Time'];
+                
+                // Add percentile headers if available
+                if (isset($this->results_summary['overall']['percentiles'])) {
+                    foreach ($this->results_summary['overall']['percentiles'] as $percentile => $value) {
+                        $headers[] = "P{$percentile}";
+                    }
+                }
+                
+                fputcsv($fp, $headers);
+                
+                // Add detailed results
+                foreach ($this->results as $result) {
+                    $row = [
+                        $result['job_id'] ?? 'N/A',
+                        $result['plan_name'] ?? 'N/A',
+                        $result['worker_id'] ?? 'N/A',
+                        date('Y-m-d H:i:s', $result['timestamp'] ?? time()),
+                        $result['url'] ?? 'N/A',
+                        $result['code'] ?? 0,
+                        $result['time'] ?? 0
+                    ];
+                    
+                    fputcsv($fp, $row);
+                }
+            }
+            
+            fclose($fp);
+            $success = true;
+        }
         
         if ($success) {
-            \WP_CLI::success("Results exported to " . WP_CONTENT_DIR . '/' . ltrim($export_path, '/'));
+            \WP_CLI::success("Results exported to " . $full_export_path);
         } else {
-            \WP_CLI::error("Failed to export results to " . $export_path);
+            \WP_CLI::error("Failed to export results to " . $full_export_path);
         }
         
         return $success;
+    }
+    
+    /**
+     * Calculate percentiles for response times
+     * 
+     * @param array $percentiles Array of percentiles to calculate (e.g., [50, 90, 95, 99])
+     */
+    private function calculate_percentiles($percentiles) {
+        if (empty($this->results)) {
+            return;
+        }
+        
+        \WP_CLI::log("📊 Calculating response time percentiles: " . implode(', ', $percentiles));
+        
+        // Group results by test plan
+        $results_by_plan = [];
+        foreach ($this->results as $result) {
+            if (!isset($result['plan_name'])) {
+                continue;
+            }
+            
+            $plan_name = $result['plan_name'];
+            if (!isset($results_by_plan[$plan_name])) {
+                $results_by_plan[$plan_name] = [];
+            }
+            
+            $results_by_plan[$plan_name][] = $result;
+        }
+        
+        // Calculate percentiles for each test plan
+        foreach ($results_by_plan as $plan_name => $plan_results) {
+            $times = array_column($plan_results, 'time');
+            sort($times);
+            
+            $plan_percentiles = [];
+            foreach ($percentiles as $percentile) {
+                $index = ceil(($percentile / 100) * count($times)) - 1;
+                if ($index < 0) $index = 0;
+                $plan_percentiles[$percentile] = round($times[$index], 4);
+            }
+            
+            // Add percentiles to results summary
+            if (isset($this->results_summary[$plan_name])) {
+                $this->results_summary[$plan_name]['percentiles'] = $plan_percentiles;
+            }
+        }
+        
+        // Calculate overall percentiles
+        $all_times = array_column($this->results, 'time');
+        sort($all_times);
+        
+        $overall_percentiles = [];
+        foreach ($percentiles as $percentile) {
+            $index = ceil(($percentile / 100) * count($all_times)) - 1;
+            if ($index < 0) $index = 0;
+            $overall_percentiles[$percentile] = round($all_times[$index], 4);
+        }
+        
+        // Add overall percentiles
+        if (isset($this->results_summary['overall'])) {
+            $this->results_summary['overall']['percentiles'] = $overall_percentiles;
+        }
+    }
+    
+    /**
+     * Save current results as a baseline for future comparison
+     * 
+     * @param string $name Baseline name
+     * @return bool Success status
+     */
+    private function save_baseline($name) {
+        if (empty($this->results_summary)) {
+            \WP_CLI::warning("No results to save as baseline.");
+            return false;
+        }
+        
+        $baseline_data = [
+            'timestamp' => time(),
+            'summary' => $this->results_summary,
+            'metadata' => [
+                'test_plans' => count($this->test_plans),
+                'workers' => $this->workers,
+                'request_count' => count($this->results)
+            ]
+        ];
+        
+        if (function_exists('set_transient')) {
+            $transient_name = 'microchaos_paralleltest_baseline_' . sanitize_key($name);
+            $result = set_transient($transient_name, $baseline_data, 60 * 60 * 24 * 30); // 30 days
+            
+            if ($result) {
+                \WP_CLI::success("✅ Baseline '{$name}' saved successfully.");
+                return true;
+            } else {
+                \WP_CLI::warning("Failed to save baseline '{$name}'.");
+                return false;
+            }
+        } else {
+            // Fallback to file-based storage if transients are not available
+            $baseline_dir = WP_CONTENT_DIR . '/microchaos/baselines';
+            if (!file_exists($baseline_dir)) {
+                mkdir($baseline_dir, 0755, true);
+            }
+            
+            $baseline_file = $baseline_dir . '/' . sanitize_file_name($name) . '.json';
+            $result = file_put_contents($baseline_file, json_encode($baseline_data, JSON_PRETTY_PRINT));
+            
+            if ($result) {
+                \WP_CLI::success("✅ Baseline '{$name}' saved to file: {$baseline_file}");
+                return true;
+            } else {
+                \WP_CLI::warning("Failed to save baseline '{$name}' to file.");
+                return false;
+            }
+        }
+    }
+    
+    /**
+     * Load a previously saved baseline
+     * 
+     * @param string $name Baseline name
+     * @return array|null Baseline data or null if not found
+     */
+    private function load_baseline($name) {
+        $baseline_data = null;
+        
+        if (function_exists('get_transient')) {
+            $transient_name = 'microchaos_paralleltest_baseline_' . sanitize_key($name);
+            $baseline_data = get_transient($transient_name);
+        }
+        
+        if ($baseline_data === false) {
+            // Try file-based storage
+            $baseline_file = WP_CONTENT_DIR . '/microchaos/baselines/' . sanitize_file_name($name) . '.json';
+            if (file_exists($baseline_file)) {
+                $file_content = file_get_contents($baseline_file);
+                $baseline_data = json_decode($file_content, true);
+            }
+        }
+        
+        if ($baseline_data) {
+            \WP_CLI::log("📋 Loaded baseline '{$name}' from " . date('Y-m-d H:i:s', $baseline_data['timestamp']));
+            return $baseline_data;
+        } else {
+            \WP_CLI::warning("⚠️ Baseline '{$name}' not found.");
+            return null;
+        }
+    }
+    
+    /**
+     * Send results to a callback URL
+     * 
+     * @param string $url Callback URL
+     * @return bool Success status
+     */
+    private function send_results_to_callback($url) {
+        if (empty($this->results_summary)) {
+            \WP_CLI::warning("No results to send to callback URL.");
+            return false;
+        }
+        
+        $payload = [
+            'timestamp' => time(),
+            'summary' => $this->results_summary,
+            'metadata' => [
+                'test_plans' => count($this->test_plans),
+                'workers' => $this->workers,
+                'parallel_mode' => $this->parallel_supported ? 'parallel' : 'sequential',
+                'request_count' => count($this->results)
+            ]
+        ];
+        
+        $args = [
+            'body' => json_encode($payload),
+            'timeout' => 30,
+            'headers' => [
+                'Content-Type' => 'application/json'
+            ]
+        ];
+        
+        \WP_CLI::log("📡 Sending results to callback URL: {$url}");
+        
+        $response = wp_remote_post($url, $args);
+        
+        if (is_wp_error($response)) {
+            \WP_CLI::warning("⚠️ Failed to send results to callback URL: " . $response->get_error_message());
+            return false;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        
+        if ($response_code >= 200 && $response_code < 300) {
+            \WP_CLI::success("✅ Results sent successfully to callback URL.");
+            return true;
+        } else {
+            \WP_CLI::warning("⚠️ Callback URL returned error code: {$response_code}");
+            return false;
+        }
+    }
+    
+    /**
+     * Output formatted results based on the specified output format
+     * 
+     * @param array|null $baseline_data Optional baseline data for comparison
+     */
+    private function output_formatted_results($baseline_data = null) {
+        if (empty($this->results_summary)) {
+            \WP_CLI::warning("No results to output.");
+            return;
+        }
+        
+        switch ($this->output_format) {
+            case 'json':
+                $this->output_json_results($baseline_data);
+                break;
+                
+            case 'csv':
+                $this->output_csv_results();
+                break;
+                
+            case 'table':
+            default:
+                $this->output_table_results($baseline_data);
+                break;
+        }
+    }
+    
+    /**
+     * Output results in JSON format
+     * 
+     * @param array|null $baseline_data Optional baseline data for comparison
+     */
+    private function output_json_results($baseline_data = null) {
+        $output = [
+            'timestamp' => time(),
+            'summary' => $this->results_summary,
+            'metadata' => [
+                'test_plans' => count($this->test_plans),
+                'workers' => $this->workers,
+                'parallel_mode' => $this->parallel_supported ? 'parallel' : 'sequential',
+                'request_count' => count($this->results)
+            ]
+        ];
+        
+        if ($baseline_data) {
+            $output['baseline_comparison'] = $this->generate_baseline_comparison($baseline_data);
+        }
+        
+        \WP_CLI::log(json_encode($output, JSON_PRETTY_PRINT));
+    }
+    
+    /**
+     * Output results in CSV format
+     */
+    private function output_csv_results() {
+        $output = "Test Plan,Requests,Success,Errors,Error Rate,Avg Time,Median Time,Min Time,Max Time\n";
+        
+        // Add overall results first
+        if (isset($this->results_summary['overall'])) {
+            $overall = $this->results_summary['overall'];
+            $output .= sprintf(
+                "OVERALL,%d,%d,%d,%.1f%%,%.4fs,%.4fs,%.4fs,%.4fs\n",
+                $overall['count'],
+                $overall['success'],
+                $overall['errors'],
+                $overall['error_rate'],
+                $overall['timing']['avg'],
+                $overall['timing']['median'],
+                $overall['timing']['min'],
+                $overall['timing']['max']
+            );
+        }
+        
+        // Add individual test plan results
+        foreach ($this->results_summary as $plan_name => $summary) {
+            if ($plan_name === 'overall') continue;
+            
+            $output .= sprintf(
+                "%s,%d,%d,%d,%.1f%%,%.4fs,%.4fs,%.4fs,%.4fs\n",
+                $plan_name,
+                $summary['count'],
+                $summary['success'],
+                $summary['errors'],
+                $summary['error_rate'],
+                $summary['timing']['avg'],
+                $summary['timing']['median'],
+                $summary['timing']['min'],
+                $summary['timing']['max']
+            );
+        }
+        
+        // Add percentiles if available
+        if (isset($this->results_summary['overall']['percentiles'])) {
+            $output .= "\nResponse Time Percentiles:\n";
+            $output .= "Test Plan";
+            
+            // Get all unique percentiles
+            $all_percentiles = [];
+            foreach ($this->results_summary as $plan_name => $summary) {
+                if (isset($summary['percentiles'])) {
+                    foreach ($summary['percentiles'] as $percentile => $value) {
+                        $all_percentiles[$percentile] = true;
+                    }
+                }
+            }
+            
+            // Sort percentiles
+            $all_percentiles = array_keys($all_percentiles);
+            sort($all_percentiles);
+            
+            // Add percentile headers
+            foreach ($all_percentiles as $percentile) {
+                $output .= ",P{$percentile}";
+            }
+            $output .= "\n";
+            
+            // Add percentiles for each test plan
+            foreach ($this->results_summary as $plan_name => $summary) {
+                if (!isset($summary['percentiles'])) continue;
+                
+                $output .= $plan_name === 'overall' ? "OVERALL" : $plan_name;
+                
+                foreach ($all_percentiles as $percentile) {
+                    $value = $summary['percentiles'][$percentile] ?? 'N/A';
+                    $output .= ",{$value}";
+                }
+                
+                $output .= "\n";
+            }
+        }
+        
+        \WP_CLI::log($output);
+    }
+    
+    /**
+     * Output results in table format (default)
+     * 
+     * @param array|null $baseline_data Optional baseline data for comparison
+     */
+    private function output_table_results($baseline_data = null) {
+        \WP_CLI::log("\n📊 Test Results Summary:");
+        
+        // Output header
+        \WP_CLI::log("┌───────────────────────────────────────────────────────────────────────────┐");
+        \WP_CLI::log("│ Test Results                                                              │");
+        \WP_CLI::log("├───────────────────────────────────────────────────────────────────────────┤");
+        
+        // Add overall results first
+        if (isset($this->results_summary['overall'])) {
+            $overall = $this->results_summary['overall'];
+            
+            $error_rate_formatted = MicroChaos_Thresholds::format_value($overall['error_rate'], 'error_rate');
+            $avg_time_formatted = MicroChaos_Thresholds::format_value($overall['timing']['avg'], 'response_time');
+            $median_time_formatted = MicroChaos_Thresholds::format_value($overall['timing']['median'], 'response_time');
+            $max_time_formatted = MicroChaos_Thresholds::format_value($overall['timing']['max'], 'response_time');
+            
+            \WP_CLI::log("│ \033[1mOVERALL SUMMARY\033[0m                                                         │");
+            \WP_CLI::log("│ Total Requests: {$overall['count']} | Success: {$overall['success']} | Errors: {$overall['errors']} | Error Rate: {$error_rate_formatted}    │");
+            \WP_CLI::log("│ Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted} | Min: {$overall['timing']['min']}s | Max: {$max_time_formatted}         │");
+            
+            // Add percentiles if available
+            if (isset($overall['percentiles'])) {
+                $percentile_line = "│ Percentiles: ";
+                
+                // Sort percentiles for consistent display
+                $percentiles = $overall['percentiles'];
+                ksort($percentiles);
+                
+                $percentile_values = [];
+                foreach ($percentiles as $percentile => $value) {
+                    $percentile_values[] = "P{$percentile}: " . MicroChaos_Thresholds::format_value($value, 'response_time');
+                }
+                
+                $percentile_line .= implode(" | ", $percentile_values);
+                $percentile_line .= str_repeat(" ", max(0, 63 - strlen(strip_tags(implode(" | ", $percentile_values)))));
+                $percentile_line .= "│";
+                
+                \WP_CLI::log($percentile_line);
+            }
+            
+            \WP_CLI::log("├───────────────────────────────────────────────────────────────────────────┤");
+        }
+        
+        // Add individual test plan results
+        \WP_CLI::log("│ \033[1mRESULTS BY TEST PLAN\033[0m                                                     │");
+        
+        foreach ($this->results_summary as $plan_name => $summary) {
+            if ($plan_name === 'overall') continue;
+            
+            $error_rate_formatted = MicroChaos_Thresholds::format_value($summary['error_rate'], 'error_rate');
+            $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time');
+            
+            $plan_name_short = strlen($plan_name) > 40 ? substr($plan_name, 0, 37) . '...' : $plan_name;
+            $plan_name_padded = str_pad($plan_name_short, 40);
+            
+            \WP_CLI::log("│ {$plan_name_padded} │");
+            \WP_CLI::log("│   Requests: {$summary['count']} | Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_rate_formatted}    │");
+            \WP_CLI::log("│   Avg Time: {$avg_time_formatted} | Median: {$summary['timing']['median']}s | Min: {$summary['timing']['min']}s | Max: {$summary['timing']['max']}s    │");
+            
+            // Check thresholds if defined in the test plan
+            $this->check_thresholds($plan_name, $summary);
+            
+            // Add percentiles if available
+            if (isset($summary['percentiles'])) {
+                $percentile_line = "│   Percentiles: ";
+                
+                // Sort percentiles for consistent display
+                $percentiles = $summary['percentiles'];
+                ksort($percentiles);
+                
+                $percentile_values = [];
+                foreach ($percentiles as $percentile => $value) {
+                    $percentile_values[] = "P{$percentile}: {$value}s";
+                }
+                
+                $percentile_line .= implode(" | ", $percentile_values);
+                $percentile_line .= str_repeat(" ", max(0, 63 - strlen($percentile_line)));
+                $percentile_line .= "│";
+                
+                \WP_CLI::log($percentile_line);
+            }
+            
+            \WP_CLI::log("├───────────────────────────────────────────────────────────────────────────┤");
+        }
+        
+        // Add baseline comparison if available
+        if ($baseline_data) {
+            $this->output_baseline_comparison($baseline_data);
+        }
+        
+        // Display an ASCII chart of response time distribution
+        $this->output_response_time_chart();
+        
+        \WP_CLI::log("└───────────────────────────────────────────────────────────────────────────┘");
+    }
+    
+    /**
+     * Generate a comparison between current results and a baseline
+     * 
+     * @param array $baseline_data Baseline data
+     * @return array Comparison data
+     */
+    private function generate_baseline_comparison($baseline_data) {
+        if (!isset($baseline_data['summary']) || !isset($this->results_summary)) {
+            return [];
+        }
+        
+        $comparison = [
+            'timestamp' => [
+                'current' => time(),
+                'baseline' => $baseline_data['timestamp']
+            ]
+        ];
+        
+        // Compare overall results
+        if (isset($baseline_data['summary']['overall']) && isset($this->results_summary['overall'])) {
+            $baseline_overall = $baseline_data['summary']['overall'];
+            $current_overall = $this->results_summary['overall'];
+            
+            $comparison['overall'] = [
+                'request_count' => [
+                    'baseline' => $baseline_overall['count'],
+                    'current' => $current_overall['count'],
+                    'difference' => $current_overall['count'] - $baseline_overall['count'],
+                    'percent_change' => $baseline_overall['count'] > 0 ? 
+                        round((($current_overall['count'] - $baseline_overall['count']) / $baseline_overall['count']) * 100, 1) : 
+                        0
+                ],
+                'error_rate' => [
+                    'baseline' => $baseline_overall['error_rate'],
+                    'current' => $current_overall['error_rate'],
+                    'difference' => $current_overall['error_rate'] - $baseline_overall['error_rate'],
+                    'percent_change' => $baseline_overall['error_rate'] > 0 ? 
+                        round((($current_overall['error_rate'] - $baseline_overall['error_rate']) / $baseline_overall['error_rate']) * 100, 1) : 
+                        0
+                ],
+                'avg_time' => [
+                    'baseline' => $baseline_overall['timing']['avg'],
+                    'current' => $current_overall['timing']['avg'],
+                    'difference' => $current_overall['timing']['avg'] - $baseline_overall['timing']['avg'],
+                    'percent_change' => $baseline_overall['timing']['avg'] > 0 ? 
+                        round((($current_overall['timing']['avg'] - $baseline_overall['timing']['avg']) / $baseline_overall['timing']['avg']) * 100, 1) : 
+                        0
+                ],
+                'median_time' => [
+                    'baseline' => $baseline_overall['timing']['median'],
+                    'current' => $current_overall['timing']['median'],
+                    'difference' => $current_overall['timing']['median'] - $baseline_overall['timing']['median'],
+                    'percent_change' => $baseline_overall['timing']['median'] > 0 ? 
+                        round((($current_overall['timing']['median'] - $baseline_overall['timing']['median']) / $baseline_overall['timing']['median']) * 100, 1) : 
+                        0
+                ],
+                'max_time' => [
+                    'baseline' => $baseline_overall['timing']['max'],
+                    'current' => $current_overall['timing']['max'],
+                    'difference' => $current_overall['timing']['max'] - $baseline_overall['timing']['max'],
+                    'percent_change' => $baseline_overall['timing']['max'] > 0 ? 
+                        round((($current_overall['timing']['max'] - $baseline_overall['timing']['max']) / $baseline_overall['timing']['max']) * 100, 1) : 
+                        0
+                ]
+            ];
+            
+            // Compare percentiles if available
+            if (isset($baseline_overall['percentiles']) && isset($current_overall['percentiles'])) {
+                $comparison['overall']['percentiles'] = [];
+                
+                // Get all unique percentiles
+                $all_percentiles = [];
+                foreach ($baseline_overall['percentiles'] as $percentile => $value) {
+                    $all_percentiles[$percentile] = true;
+                }
+                foreach ($current_overall['percentiles'] as $percentile => $value) {
+                    $all_percentiles[$percentile] = true;
+                }
+                
+                // Compare each percentile
+                foreach (array_keys($all_percentiles) as $percentile) {
+                    if (isset($baseline_overall['percentiles'][$percentile]) && isset($current_overall['percentiles'][$percentile])) {
+                        $baseline_value = $baseline_overall['percentiles'][$percentile];
+                        $current_value = $current_overall['percentiles'][$percentile];
+                        
+                        $comparison['overall']['percentiles']["p{$percentile}"] = [
+                            'baseline' => $baseline_value,
+                            'current' => $current_value,
+                            'difference' => $current_value - $baseline_value,
+                            'percent_change' => $baseline_value > 0 ? 
+                                round((($current_value - $baseline_value) / $baseline_value) * 100, 1) : 
+                                0
+                        ];
+                    }
+                }
+            }
+        }
+        
+        // Compare individual test plan results
+        $comparison['test_plans'] = [];
+        
+        foreach ($this->results_summary as $plan_name => $current_summary) {
+            if ($plan_name === 'overall') continue;
+            
+            if (isset($baseline_data['summary'][$plan_name])) {
+                $baseline_summary = $baseline_data['summary'][$plan_name];
+                
+                $comparison['test_plans'][$plan_name] = [
+                    'request_count' => [
+                        'baseline' => $baseline_summary['count'],
+                        'current' => $current_summary['count'],
+                        'difference' => $current_summary['count'] - $baseline_summary['count'],
+                        'percent_change' => $baseline_summary['count'] > 0 ? 
+                            round((($current_summary['count'] - $baseline_summary['count']) / $baseline_summary['count']) * 100, 1) : 
+                            0
+                    ],
+                    'error_rate' => [
+                        'baseline' => $baseline_summary['error_rate'],
+                        'current' => $current_summary['error_rate'],
+                        'difference' => $current_summary['error_rate'] - $baseline_summary['error_rate'],
+                        'percent_change' => $baseline_summary['error_rate'] > 0 ? 
+                            round((($current_summary['error_rate'] - $baseline_summary['error_rate']) / $baseline_summary['error_rate']) * 100, 1) : 
+                            0
+                    ],
+                    'avg_time' => [
+                        'baseline' => $baseline_summary['timing']['avg'],
+                        'current' => $current_summary['timing']['avg'],
+                        'difference' => $current_summary['timing']['avg'] - $baseline_summary['timing']['avg'],
+                        'percent_change' => $baseline_summary['timing']['avg'] > 0 ? 
+                            round((($current_summary['timing']['avg'] - $baseline_summary['timing']['avg']) / $baseline_summary['timing']['avg']) * 100, 1) : 
+                            0
+                    ],
+                    'median_time' => [
+                        'baseline' => $baseline_summary['timing']['median'],
+                        'current' => $current_summary['timing']['median'],
+                        'difference' => $current_summary['timing']['median'] - $baseline_summary['timing']['median'],
+                        'percent_change' => $baseline_summary['timing']['median'] > 0 ? 
+                            round((($current_summary['timing']['median'] - $baseline_summary['timing']['median']) / $baseline_summary['timing']['median']) * 100, 1) : 
+                            0
+                    ]
+                ];
+            }
+        }
+        
+        return $comparison;
+    }
+    
+    /**
+     * Output baseline comparison in table format
+     * 
+     * @param array $baseline_data Baseline data
+     */
+    private function output_baseline_comparison($baseline_data) {
+        if (!isset($baseline_data['summary']) || !isset($this->results_summary)) {
+            return;
+        }
+        
+        $baseline_timestamp = date('Y-m-d H:i:s', $baseline_data['timestamp']);
+        
+        \WP_CLI::log("│ \033[1mBASELINE COMPARISON\033[0m                                                      │");
+        \WP_CLI::log("│ Comparing with baseline from: {$baseline_timestamp}                     │");
+        \WP_CLI::log("├───────────────────────────────────────────────────────────────────────────┤");
+        
+        // Compare overall results
+        if (isset($baseline_data['summary']['overall']) && isset($this->results_summary['overall'])) {
+            $baseline_overall = $baseline_data['summary']['overall'];
+            $current_overall = $this->results_summary['overall'];
+            
+            \WP_CLI::log("│ \033[1mOVERALL\033[0m                                                                   │");
+            
+            // Response time comparison
+            $avg_time_diff = $current_overall['timing']['avg'] - $baseline_overall['timing']['avg'];
+            $avg_time_percent = $baseline_overall['timing']['avg'] > 0 ? 
+                round(($avg_time_diff / $baseline_overall['timing']['avg']) * 100, 1) : 
+                0;
+                
+            $avg_time_indicator = $avg_time_diff <= 0 ? '↓' : '↑';
+            $avg_time_color = $avg_time_diff <= 0 ? "\033[32m" : "\033[31m";
+            
+            $median_time_diff = $current_overall['timing']['median'] - $baseline_overall['timing']['median'];
+            $median_time_percent = $baseline_overall['timing']['median'] > 0 ? 
+                round(($median_time_diff / $baseline_overall['timing']['median']) * 100, 1) : 
+                0;
+                
+            $median_time_indicator = $median_time_diff <= 0 ? '↓' : '↑';
+            $median_time_color = $median_time_diff <= 0 ? "\033[32m" : "\033[31m";
+            
+            \WP_CLI::log("│ Response Time:                                                           │");
+            \WP_CLI::log("│   - Avg: {$current_overall['timing']['avg']}s vs {$baseline_overall['timing']['avg']}s  {$avg_time_color}{$avg_time_indicator}{$avg_time_percent}%\033[0m                              │");
+            \WP_CLI::log("│   - Median: {$current_overall['timing']['median']}s vs {$baseline_overall['timing']['median']}s  {$median_time_color}{$median_time_indicator}{$median_time_percent}%\033[0m                           │");
+            
+            // Error rate comparison
+            $error_rate_diff = $current_overall['error_rate'] - $baseline_overall['error_rate'];
+            $error_rate_percent = $baseline_overall['error_rate'] > 0 ? 
+                round(($error_rate_diff / $baseline_overall['error_rate']) * 100, 1) : 
+                0;
+                
+            $error_rate_indicator = $error_rate_diff <= 0 ? '↓' : '↑';
+            $error_rate_color = $error_rate_diff <= 0 ? "\033[32m" : "\033[31m";
+            
+            \WP_CLI::log("│ Error Rate: {$current_overall['error_rate']}% vs {$baseline_overall['error_rate']}%  {$error_rate_color}{$error_rate_indicator}{$error_rate_percent}%\033[0m                                │");
+            
+            // Percentile comparison if available
+            if (isset($baseline_overall['percentiles']) && isset($current_overall['percentiles'])) {
+                \WP_CLI::log("│ Percentiles:                                                             │");
+                
+                // Get common percentiles
+                $common_percentiles = array_intersect(
+                    array_keys($baseline_overall['percentiles']),
+                    array_keys($current_overall['percentiles'])
+                );
+                
+                // Sort percentiles
+                sort($common_percentiles);
+                
+                foreach ($common_percentiles as $percentile) {
+                    $baseline_value = $baseline_overall['percentiles'][$percentile];
+                    $current_value = $current_overall['percentiles'][$percentile];
+                    
+                    $diff = $current_value - $baseline_value;
+                    $percent = $baseline_value > 0 ? 
+                        round(($diff / $baseline_value) * 100, 1) : 
+                        0;
+                        
+                    $indicator = $diff <= 0 ? '↓' : '↑';
+                    $color = $diff <= 0 ? "\033[32m" : "\033[31m";
+                    
+                    \WP_CLI::log("│   - P{$percentile}: {$current_value}s vs {$baseline_value}s  {$color}{$indicator}{$percent}%\033[0m                             │");
+                }
+            }
+            
+            \WP_CLI::log("├───────────────────────────────────────────────────────────────────────────┤");
+        }
+    }
+    
+    /**
+     * Output response time distribution chart
+     */
+    private function output_response_time_chart() {
+        if (empty($this->results)) {
+            return;
+        }
+        
+        // Extract response times
+        $times = array_column($this->results, 'time');
+        
+        // Generate histogram
+        $buckets = 10;
+        $min = min($times);
+        $max = max($times);
+        $range = $max - $min;
+        
+        // Avoid division by zero if all values are the same
+        if ($range == 0) {
+            $range = 0.1;
+        }
+        
+        $bucket_size = $range / $buckets;
+        $histogram = array_fill(0, $buckets, 0);
+        
+        foreach ($times as $time) {
+            $bucket = min($buckets - 1, floor(($time - $min) / $bucket_size));
+            $histogram[$bucket]++;
+        }
+        
+        $max_count = max($histogram);
+        $chart_width = 40;
+        
+        \WP_CLI::log("│ \033[1mRESPONSE TIME DISTRIBUTION\033[0m                                              │");
+        
+        for ($i = 0; $i < $buckets; $i++) {
+            $lower = round($min + ($i * $bucket_size), 2);
+            $upper = round($min + (($i + 1) * $bucket_size), 2);
+            $count = $histogram[$i];
+            
+            $bar_length = ($max_count > 0) ? round(($count / $max_count) * $chart_width) : 0;
+            $bar = str_repeat('█', $bar_length);
+            $padding = str_repeat(' ', $chart_width - $bar_length);
+            
+            $line = sprintf("│ %5.2fs - %5.2fs [%s%s] %-5d │", 
+                $lower, $upper, $bar, $padding, $count);
+            
+            \WP_CLI::log($line);
+        }
+        
+        \WP_CLI::log("├───────────────────────────────────────────────────────────────────────────┤");
     }
     
     /**
