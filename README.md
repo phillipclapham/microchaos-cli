@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v1.8.5
+v2.0.0
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -43,7 +43,8 @@ microchaos/
     ├── resource-monitor.php # System resource tracking
     ├── reporting-engine.php # Results collection and reporting
     ├── integration-logger.php # External monitoring integration
-    └── thresholds.php     # Performance thresholds and visualization
+    ├── thresholds.php     # Performance thresholds and visualization
+    └── parallel-test.php  # Parallel testing functionality
 ```
 
 This architecture makes the codebase more maintainable, testable, and extensible for developers who want to customize or extend functionality.
@@ -84,6 +85,8 @@ This will generate a fresh single-file version in the `dist/` directory, ready f
 2. Run the loopback test with at least 2-3x those numbers to see if resource usage climbs to a point of concern.
 3. Watch server-level metrics (PHP error logs, memory usage, CPU load) to see if you're hitting resource ceilings.
 
+### Standard Load Testing
+
 ```bash
 wp microchaos loadtest --endpoint=home --count=100
 ```
@@ -94,9 +97,74 @@ Or go wild:
 wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com --concurrency-mode=async --cache-headers --resource-logging
 ```
 
+### Parallel Testing with JSON Plans
+
+The parallel testing feature uses JSON-formatted test plans to define multiple test scenarios that run concurrently.
+
+Create a test plan file (e.g., `test-plans.json`):
+
+```json
+[
+  {
+    "name": "Homepage Test",
+    "description": "Test homepage under load",
+    "endpoint": "home",
+    "requests": 100,
+    "concurrency": 10,
+    "method": "GET"
+  },
+  {
+    "name": "Shop Page Test",
+    "description": "Test shop page with authenticated user",
+    "endpoint": "shop",
+    "requests": 50,
+    "concurrency": 5,
+    "method": "GET",
+    "auth": "admin@example.com"
+  },
+  {
+    "name": "API Order Test",
+    "description": "Test API endpoint for creating orders",
+    "endpoint": "custom:/wp-json/wc/v3/orders",
+    "requests": 25,
+    "concurrency": 3,
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer token123"
+    },
+    "body": {
+      "customer_id": 1,
+      "status": "pending",
+      "line_items": [
+        {
+          "product_id": 93,
+          "quantity": 2
+        }
+      ]
+    },
+    "thresholds": {
+      "response_time": 500,
+      "error_rate": 0.05
+    }
+  }
+]
+```
+
+Then run the parallel test:
+
+```bash
+wp microchaos paralleltest --file=test-plans.json --workers=5
+```
+
 ## 🔧 CLI Options
 
-### Basic Options
+### Available Commands
+
+- `wp microchaos loadtest` Run a standard load test with various options
+- `wp microchaos paralleltest` Run multiple test plans in parallel with worker processes
+
+### Basic Options (loadtest)
 
 - `--endpoint=<slug>` home, shop, cart, checkout, or custom:/my-path
 - `--endpoints=<endpoint-list>` Comma-separated list of endpoints to rotate through
@@ -104,6 +172,21 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 - `--duration=<minutes>` Run test for specified duration instead of fixed request count
 - `--burst=<n>` Requests per burst (default: 10)
 - `--delay=<seconds>` Delay between bursts (default: 2)
+
+### Parallel Testing Options (paralleltest)
+
+- `--file=<path>` Path to a JSON file containing test plan(s)
+- `--plan=<json>` JSON string containing test plan(s) directly in the command
+- `--workers=<number>` Number of parallel workers to use (default: 3)
+- `--output=<format>` Output format: json, table, csv (default: table)
+- `--timeout=<seconds>` Global timeout for test execution in seconds (default: 600)
+- `--export=<path>` Export results to specified file path (relative to wp-content directory)
+- `--export-format=<format>` Format for exporting results: json, csv (default: json)
+- `--export-detail=<level>` Detail level for exported results: summary, full (default: summary)
+- `--percentiles=<list>` Comma-separated list of percentiles to calculate (e.g., 90,95,99)
+- `--baseline=<name>` Compare results with a previously saved baseline
+- `--save-baseline=<name>` Save current results as a baseline for future comparisons
+- `--callback-url=<url>` Send test results to this URL upon completion (HTTP POST)
 
 ### Request Configuration
 
@@ -153,10 +236,51 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 
 ## 💡 Examples
 
+### Load Testing Examples
+
 Load test the homepage with cache warmup and log output
 
 ```bash
 wp microchaos loadtest --endpoint=home --count=100 --warm-cache --log-to=uploads/home-log.txt
+```
+
+### Parallel Testing Examples
+
+Run parallel tests defined in a JSON file with 5 workers
+
+```bash
+wp microchaos paralleltest --file=test-plans.json --workers=5
+```
+
+Run parallel tests with a JSON string
+
+```bash
+wp microchaos paralleltest --plan='[{"name":"Homepage Test","endpoint":"home","requests":50},{"name":"Checkout Test","endpoint":"checkout","requests":25,"auth":"user@example.com"}]'
+```
+
+Run parallel tests and output results as JSON
+
+```bash
+wp microchaos paralleltest --file=test-plans.json --output=json
+```
+
+Run tests and export detailed results in CSV format
+
+```bash
+wp microchaos paralleltest --file=test-plans.json --export=results.csv --export-format=csv --export-detail=full
+```
+
+Calculate additional percentiles and include them in results
+
+```bash
+wp microchaos paralleltest --file=test-plans.json --percentiles=50,75,90,95,99
+```
+
+Save results as baseline and compare with previous baseline
+
+```bash
+wp microchaos paralleltest --file=test-plans.json --save-baseline=api-test
+wp microchaos paralleltest --file=test-plans.json --baseline=api-test
 ```
 
 Simulate async WooCommerce cart traffic
@@ -392,6 +516,80 @@ Automatically determine maximum capacity and recommended concurrent user limits.
 
 ---
 
+### 📊 Parallel Testing Results
+
+```bash
+🚀 MicroChaos Parallel Test Started
+-> Test Plans: 3
+-> Workers: 5
+-> Timeout: 600 seconds
+-> Output Format: table
+-> Percentiles: 95, 99
+
+📋 Test Plan Summary:
+Test Plan #1: Homepage Test
+  Endpoint: home
+  Requests: 100 | Concurrency: 10
+  Method: GET
+
+Test Plan #2: Shop Page Test
+  Endpoint: shop
+  Requests: 50 | Concurrency: 5
+  Auth: admin@example.com
+
+Test Plan #3: API Order Test
+  Endpoint: custom:/wp-json/wc/v3/orders
+  Requests: 25 | Concurrency: 3
+  Method: POST
+  Headers: 2
+  Body: Yes
+  Thresholds: Response time: 500ms, Error rate: 0.05
+
+-> Parallel execution enabled with 5 workers.
+
+📊 Test Results Summary:
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Test Results                                                              │
+├───────────────────────────────────────────────────────────────────────────┤
+│ OVERALL SUMMARY                                                         │
+│ Total Requests: 175 | Success: 173 | Errors: 2 | Error Rate: 1.1%    │
+│ Avg Time: 0.217s | Median: 0.183s | Min: 0.102s | Max: 0.786s         │
+│ Percentiles: P95: 0.421s | P99: 0.654s                                 │
+├───────────────────────────────────────────────────────────────────────────┤
+│ RESULTS BY TEST PLAN                                                     │
+│ Homepage Test                                        │
+│   Requests: 100 | Success: 100 | Errors: 0 | Error Rate: 0.0%    │
+│   Avg Time: 0.184s | Median: 0.165s | Min: 0.102s | Max: 0.501s    │
+├───────────────────────────────────────────────────────────────────────────┤
+│ Shop Page Test                                       │
+│   Requests: 50 | Success: 49 | Errors: 1 | Error Rate: 2.0%    │
+│   Avg Time: 0.251s | Median: 0.223s | Min: 0.142s | Max: 0.622s    │
+├───────────────────────────────────────────────────────────────────────────┤
+│ API Order Test                                       │
+│   Requests: 25 | Success: 24 | Errors: 1 | Error Rate: 4.0%    │
+│   Avg Time: 0.273s | Median: 0.231s | Min: 0.154s | Max: 0.786s    │
+│ ⚠️ Threshold violations for API Order Test:                  │
+│    - Error rate exceeded threshold: 4.0% > 5.0%                        │
+├───────────────────────────────────────────────────────────────────────────┤
+│ RESPONSE TIME DISTRIBUTION                                              │
+│ 0.10s - 0.17s [████████████████████                ] 63    │
+│ 0.17s - 0.24s [███████████████████████             ] 72    │
+│ 0.24s - 0.31s [████████                            ] 16    │
+│ 0.31s - 0.38s [████                                ] 8     │
+│ 0.38s - 0.45s [███                                 ] 6     │
+│ 0.45s - 0.52s [██                                  ] 4     │
+│ 0.52s - 0.59s [██                                  ] 3     │
+│ 0.59s - 0.66s [█                                   ] 2     │
+│ 0.66s - 0.73s [                                    ] 0     │
+│ 0.73s - 0.80s [█                                   ] 1     │
+└───────────────────────────────────────────────────────────────────────────┘
+🎉 Parallel Test Execution Complete
+```
+
+Run multiple test plans simultaneously to simulate realistic mixed traffic patterns.
+
+---
+
 ## 🧠 Design Philosophy
 
 "Improvisation > Perfection. Paradox is fuel."
@@ -406,9 +604,11 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
-- **Parallel testing** - Add capability to fire test sequences in parallel, each with different parameters, to simulate more realistic mixed traffic patterns (e.g., anonymous users browsing products while logged-in users checkout simultaneously).
+- **Distributed testing** - Add capability to coordinate testing across multiple machines to generate even higher concurrent loads for large-scale performance testing.
 
-- **Snapshot comparison** - Save full detail snapshots that include all individual request data, not just summaries, for more granular analysis between test runs and historical trending.
+- **Advanced visualization** - Implement interactive charts and graphs for more detailed visual analysis of test results.
+
+- **Custom test plan templates** - Provide a library of pre-configured test plans for common testing scenarios (e.g., e-commerce checkout flows, membership sites, etc.).
 
 ---
 
