@@ -604,9 +604,7 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Future Ideas
 
-- **Distributed testing** - Add capability to coordinate testing across multiple machines to generate even higher concurrent loads for large-scale performance testing.
-
-- **Advanced visualization** - Implement interactive charts and graphs for more detailed visual analysis of test results.
+- **Advanced visualizations** - Implement interactive charts and graphs for more detailed visual analysis of test results.
 
 - **Custom test plan templates** - Provide a library of pre-configured test plans for common testing scenarios (e.g., e-commerce checkout flows, membership sites, etc.).
 
