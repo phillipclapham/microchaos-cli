@@ -27,7 +27,7 @@ wp microchaos paralleltest [--file=<path>] [--plan=<json>] [--workers=<number>] 
 {
   "name": "API Load Test",
   "description": "Test API endpoint under load",
-  "target": "<https://example.com/api/endpoint>",
+  "endpoint": "<https://example.com/api/endpoint>",
   "requests": 100,
   "concurrency": 10,
   "delay": 0,
@@ -36,7 +36,7 @@ wp microchaos paralleltest [--file=<path>] [--plan=<json>] [--workers=<number>] 
     "Content-Type": "application/json",
     "Authorization": "Bearer token123"
   },
-  "data": {
+  "body": {
     "param1": "value1",
     "param2": "value2"
   },
@@ -54,13 +54,13 @@ wp microchaos paralleltest [--file=<path>] [--plan=<json>] [--workers=<number>] 
 [
   {
     "name": "API Test 1",
-    "target": "https://example.com/api/endpoint1",
+    "endpoint": "https://example.com/api/endpoint1",
     "requests": 50,
     "concurrency": 5
   },
   {
     "name": "API Test 2",
-    "target": "https://example.com/api/endpoint2",
+    "endpoint": "https://example.com/api/endpoint2",
     "requests": 75,
     "concurrency": 8
   }
@@ -77,10 +77,10 @@ wp microchaos paralleltest [--file=<path>] [--plan=<json>] [--workers=<number>] 
 - [x] Validate test plan schema structure
 
 ### Phase 2: Worker Management (Session 2)
-- [ ] Create worker pool based on `--workers` parameter
-- [ ] Implement job distribution strategy
-- [ ] Add inter-process communication mechanism
-- [ ] Create test execution logic for individual worker
+- [x] Create worker pool based on `--workers` parameter
+- [x] Implement job distribution strategy
+- [x] Add inter-process communication mechanism
+- [x] Create test execution logic for individual worker
 
 ### Phase 3: Execution & Results Collection (Session 3)
 - [ ] Design progress reporting system
@@ -141,11 +141,92 @@ wp microchaos paralleltest [--file=<path>] [--plan=<json>] [--workers=<number>] 
   - Create inter-process communication mechanism
   - Create test execution logic for individual workers
 
-### Session 2 (Date: __________)
+### Session 2 (Date: 4/6/2025)
 - Tasks completed:
-  - 
+  - Created worker pool management based on --workers parameter
+  - Implemented job distribution strategy using file-based queuing
+  - Added inter-process communication mechanism using temp files and file locking
+  - Created test execution logic for individual workers
+  - Implemented platform detection to run in parallel mode (Linux/macOS) or sequential mode (Windows/unsupported)
+  - Added progress monitoring system for real-time updates
+  - Implemented results collection from all workers
+  - Standardized parameter naming between paralleltest and loadtest commands:
+    - Changed `target` to `endpoint` for consistency
+    - Added support for `body` in addition to `data`
+    - Added support for both `requests` and `count`
+    - Added support for both `concurrency` and `burst`
+
+#### Implementation Details
+- **Worker Pool Management**:
+  - Uses PHP's `pcntl_fork()` for parallel execution on Linux/macOS
+  - Falls back to sequential execution on Windows or systems without pcntl
+  - Creates worker processes based on `--workers` parameter (default: 3)
+  - Job queue is prepared by breaking down test plans into concurrency-sized batches
+
+- **Inter-Process Communication**:
+  - Uses temporary directory for file-based communication (`microchaos_[uniqid]` in system temp path)
+  - Files created:
+    - `jobs.json`: Contains the job queue for workers to consume
+    - `progress.json`: Tracks overall progress and active jobs
+    - `worker_[id].log`: Individual log files for each worker
+    - `worker_[id]_results.json`: Results collected by each worker
+    - `combined_results.json`: Aggregated results from all workers
+
+- **Job Distribution System**:
+  - Job format: `{"id": job_id, "plan": plan_data, "batch_size": batch_size}`
+  - File locking (flock) used to prevent race conditions during job acquisition
+  - Each worker processes jobs until queue is empty
+
+- **Current State**:
+  - Worker processes can successfully execute test plans
+  - Parent process monitors progress and collects results
+  - Results are saved but not yet analyzed or presented
+  - Temporary files are kept for Phase 3 processing
+  - Basic error handling implemented but needs enhancement
+
+#### Code Architecture
+- Main execution flow in `run()` method
+- Platform detection in `$this->parallel_supported = extension_loaded('pcntl')`
+- Worker pool created in `execute_parallel()` or `execute_sequential()`
+- Worker execution logic in `run_worker()` method
+- Job acquisition with locking in `acquire_job()` method
+- Progress tracking in `monitor_workers()` method
+- Result collection in `cleanup_temp_files()` method
+
 - Next steps:
-  - 
+  - Design and implement detailed progress reporting system
+  - Refine results collection and aggregation for analytics 
+  - Implement error handling and recovery mechanism
+  - Build a timeout management system
+  - Add authentication support for test plans
+
+### Session 3 Planning
+The next session will focus on Phase 3: Execution & Results Collection. Here are the key areas that need to be addressed:
+
+#### Progress Reporting System
+- Design a real-time progress indicator for the parent process
+- Create a standardized format for reporting status updates
+- Implement color-coded output for different status levels
+- Add ETA calculation based on completed jobs and average time per job
+
+#### Results Collection and Aggregation
+- Define the metrics to be collected (response time, error rate, throughput)
+- Implement statistical calculations (min, max, avg, median, percentiles)
+- Create data structures for storing results by test plan and overall
+- Add comparison against thresholds defined in test plans
+
+#### Error Handling and Recovery
+- Implement worker process health checks
+- Add detection and handling of failed workers
+- Create mechanism to retry failed jobs
+- Implement graceful shutdown on fatal errors
+- Add signal handling (SIGINT, SIGTERM) for clean termination
+
+#### Timeout Management
+- Add global test execution timeout
+- Implement per-job timeout tracking
+- Create mechanism to abort long-running jobs
+- Handle timeout notification and reporting
 
 ### Session 3 (Date: __________)
 - Tasks completed:

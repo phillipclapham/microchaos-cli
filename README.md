@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v1.8.4
+v1.8.5
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 

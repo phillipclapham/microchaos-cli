@@ -2,7 +2,7 @@
   {
     "name": "Homepage Test",
     "description": "Test homepage under load",
-    "target": "home",
+    "endpoint": "home",
     "requests": 100,
     "concurrency": 10,
     "delay": 0,
@@ -12,7 +12,7 @@
   {
     "name": "Shop Page Test",
     "description": "Test shop page with authenticated user",
-    "target": "shop",
+    "endpoint": "shop",
     "requests": 50,
     "concurrency": 5,
     "delay": 1,
@@ -23,7 +23,7 @@
   {
     "name": "API Order Test",
     "description": "Test API endpoint for creating orders",
-    "target": "custom:/wp-json/wc/v3/orders",
+    "endpoint": "custom:/wp-json/wc/v3/orders",
     "requests": 25,
     "concurrency": 3,
     "delay": 2,
@@ -33,7 +33,7 @@
       "Content-Type": "application/json",
       "Authorization": "Bearer token123"
     },
-    "data": {
+    "body": {
       "customer_id": 1,
       "status": "pending",
       "line_items": [
