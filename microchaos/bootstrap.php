@@ -45,6 +45,7 @@ class MicroChaos_Bootstrap {
         $core_components = [
             'thresholds.php',
             'integration-logger.php',
+            'parallel-test.php',
             'commands.php',
             'request-generator.php',
             'cache-analyzer.php',

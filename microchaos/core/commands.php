@@ -22,6 +22,53 @@ class MicroChaos_Commands {
             \WP_CLI::add_command('microchaos', 'MicroChaos_Commands');
         }
     }
+    
+    /**
+     * Run parallel load tests using multiple workers.
+     *
+     * ## DESCRIPTION
+     *
+     * Runs multiple load tests in parallel using a JSON test plan configuration.
+     * This allows simulating more realistic mixed traffic patterns, such as anonymous users
+     * browsing products while logged-in users checkout simultaneously.
+     *
+     * The test plan can be provided either as a direct JSON string or as a path to a JSON file.
+     * 
+     * ## OPTIONS
+     *
+     * [--file=<path>]
+     * : Path to a JSON file containing test plan(s)
+     *
+     * [--plan=<json>]
+     * : JSON string containing test plan(s) directly in the command
+     *
+     * [--workers=<number>]
+     * : Number of parallel workers to use. Default: 3
+     *
+     * [--output=<format>]
+     * : Output format. Options: json, table, csv. Default: table
+     *
+     * ## EXAMPLES
+     *
+     *     # Run parallel tests defined in a JSON file
+     *     wp microchaos paralleltest --file=test-plans.json
+     *
+     *     # Run parallel tests with a JSON string
+     *     wp microchaos paralleltest --plan='[{"name":"Homepage Test","target":"home","requests":50},{"name":"Checkout Test","target":"checkout","requests":25,"auth":"user@example.com"}]'
+     *
+     *     # Run parallel tests with 5 workers
+     *     wp microchaos paralleltest --file=test-plans.json --workers=5
+     *
+     *     # Run parallel tests and output results as JSON
+     *     wp microchaos paralleltest --file=test-plans.json --output=json
+     *
+     * @param array $args Command arguments
+     * @param array $assoc_args Command options
+     */
+    public function paralleltest($args, $assoc_args) {
+        $parallel_test = new MicroChaos_ParallelTest();
+        $parallel_test->run($args, $assoc_args);
+    }
 
     /**
      * Run an internal load test using loopback requests.
