@@ -8,6 +8,12 @@ When external load testing tools are blocked, when rate limits make your bots cr
 
 Built for staging environments like **Pressable**, MicroChaos simulates traffic at scale—warm or cold cache, anonymous or authenticated, fast bursts or slow burns.
 
+## Current Bugs
+
+- [ ] `--progressive` mode is not working as expected. It may not accurately determine the breaking point or recommended maximum capacity due to restrictions in the test environment.
+- [ ] `--cache-headers` is currently breaking the `--burst` flag.
+- [ ] `--concurrency-mode=async` is not functioning as intended. It may not effectively handle concurrent requests, leading to unexpected behavior during load tests. Breaks the `--burst` flag.
+
 ---
 
 ## 🎯 Purpose
