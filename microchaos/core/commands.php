@@ -684,7 +684,7 @@ class MicroChaos_Commands {
             if ($should_delay) {
                 $random_delay = rand($delay * 50, $delay * 150) / 100; // Random delay between 50% and 150% of base delay
                 \WP_CLI::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
-                sleep($random_delay);
+                sleep((int)$random_delay);
             }
         }
 
@@ -1031,7 +1031,7 @@ class MicroChaos_Commands {
             if ($concurrency + $progressive_step <= $progressive_max) {
                 $random_delay = rand($delay * 50, $delay * 150) / 100; // Random delay between 50% and 150% of base delay
                 \WP_CLI::log("⏳ Sleeping for {$random_delay}s before next level");
-                sleep($random_delay);
+                sleep((int)$random_delay);
             }
         }
         

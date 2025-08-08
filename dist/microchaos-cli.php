@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-04-28T14:54:35.888Z
+ * Generated on: 2025-08-08T14:53:02.656Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -4845,7 +4845,7 @@ class MicroChaos_Commands {
             if ($should_delay) {
                 $random_delay = rand($delay * 50, $delay * 150) / 100; // Random delay between 50% and 150% of base delay
                 \WP_CLI::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
-                sleep($random_delay);
+                sleep((int)$random_delay);
             }
         }
 
@@ -5192,7 +5192,7 @@ class MicroChaos_Commands {
             if ($concurrency + $progressive_step <= $progressive_max) {
                 $random_delay = rand($delay * 50, $delay * 150) / 100; // Random delay between 50% and 150% of base delay
                 \WP_CLI::log("⏳ Sleeping for {$random_delay}s before next level");
-                sleep($random_delay);
+                sleep((int)$random_delay);
             }
         }
         
