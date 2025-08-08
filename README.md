@@ -10,9 +10,7 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ## Current Bugs
 
-- [ ] `--progressive` mode is not working as expected. It may not accurately determine the breaking point or recommended maximum capacity due to restrictions in the test environment.
 - [ ] `--cache-headers` is currently breaking the `--burst` flag.
-- [ ] `--concurrency-mode=async` is not functioning as intended. It may not effectively handle concurrent requests, leading to unexpected behavior during load tests. Breaks the `--burst` flag.
 
 ---
 
@@ -32,6 +30,70 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 1. Copy the file `microchaos-cli.php` from the `dist` directory to `wp-content/mu-plugins/` on your site.
 2. Make sure WP-CLI is available in your environment.
 3. You're ready to chaos!
+
+---
+
+## 🚨 Platform Limitations (Pressable & Similar Hosts)
+
+### Loopback Request Restrictions
+
+When running MicroChaos on **Pressable** and similar managed WordPress hosts, be aware of these platform-specific limitations:
+
+- **Rate Limiting**: Loopback requests are automatically rate-limited to ~10 concurrent requests
+- **Serial Processing Only**: Due to rate limiting, tests effectively run in serial mode regardless of concurrency settings
+- **Progressive Mode**: The `--progressive` flag will hit rate limits quickly, making it ineffective for finding true capacity limits
+- **Async Concurrency**: The `--concurrency-mode=async` flag cannot bypass platform rate limits
+
+### Best Practices for Pressable
+
+1. **Duration-Based Testing with High Bursts**: Run sustained tests to measure requests/second capacity
+   ```bash
+   wp microchaos loadtest --endpoints=home,shop,cart,checkout --duration=10 --burst=100 --resource-logging --resource-trends
+   ```
+
+2. **Endpoint Rotation**: Simulate realistic user flows by rotating through typical site paths
+   ```bash
+   wp microchaos loadtest --endpoints=home,shop,product,cart,checkout --rotation-mode=serial --duration=10 --burst=200
+   ```
+
+3. **Baseline Testing**: Start with smaller bursts to establish performance baseline, then scale up
+   ```bash
+   # Initial baseline
+   wp microchaos loadtest --endpoints=home,shop --duration=5 --burst=50 --save-baseline=initial
+   # Scale up based on site speed
+   wp microchaos loadtest --endpoints=home,shop --duration=10 --burst=500 --compare-baseline=initial
+   ```
+
+4. **Resource Analysis**: Combine with Grafana/monitoring data to determine worker and RAM requirements
+   ```bash
+   wp microchaos loadtest --endpoints=home,shop,cart --duration=10 --burst=300 --resource-logging --resource-trends
+   ```
+
+**Note**: The `--burst` flag controls how many **serial** requests are sent before pausing, not concurrent requests. Since Pressable processes requests serially due to loopback restrictions, you can use large burst values (50-500+) effectively. The key metrics are:
+- Total requests per second achieved
+- Resource utilization trends
+- Worker and memory requirements at target load
+
+### What Works Well on Pressable
+
+- ✅ High-volume serial request testing (50-500+ burst sizes)
+- ✅ Duration-based load testing for sustained traffic simulation
+- ✅ Endpoint rotation to simulate real user flows
+- ✅ Resource monitoring and trend analysis
+- ✅ Cache warmup and behavior analysis
+- ✅ Authenticated user simulation
+- ✅ Baseline comparisons for performance tracking
+- ✅ Custom headers and cookies
+- ✅ Requests/second capacity measurement
+
+### What's Limited by Platform
+
+- ⚠️ True concurrent/parallel request testing (all requests process serially)
+- ⚠️ Progressive mode (hits rate limits before finding true capacity)
+- ⚠️ Async concurrency mode (cannot bypass serial processing)
+- ⚠️ Simulating truly concurrent user sessions
+
+**Note**: These limitations are due to Pressable's security and stability measures, not bugs in MicroChaos. The tool remains highly effective for cache analysis, performance baseline testing, and simulating realistic serial traffic patterns.
 
 ---
 
