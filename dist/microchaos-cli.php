@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-08-08T14:53:02.656Z
+ * Generated on: 2025-08-08T15:33:03.343Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -2892,6 +2892,13 @@ class MicroChaos_Request_Generator {
     private $cache_headers = [];
 
     /**
+     * Last request cache headers
+     *
+     * @var array
+     */
+    private $last_request_cache_headers = [];
+
+    /**
      * Constructor
      *
      * @param array $options Options for the request generator
@@ -3025,7 +3032,11 @@ class MicroChaos_Request_Generator {
             }
 
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("-> {$code} in {$duration}s");
+                $cache_display = '';
+                if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
+                    $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
+                }
+                \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
             }
 
             $results[] = [
@@ -3114,7 +3125,11 @@ class MicroChaos_Request_Generator {
         }
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("-> {$code} in {$duration}s");
+            $cache_display = '';
+            if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
+                $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
+            }
+            \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
         }
 
         // Return result for reporting
@@ -3171,9 +3186,17 @@ class MicroChaos_Request_Generator {
         // Headers to track (Pressable specific and general cache headers)
         $cache_headers = ['x-ac', 'x-nananana', 'x-cache', 'age', 'x-cache-hits'];
 
+        // Store current request cache headers for display
+        $this->last_request_cache_headers = [];
+
         foreach ($cache_headers as $header) {
             if (isset($headers[$header])) {
                 $value = $headers[$header];
+                
+                // Store for current request display
+                $this->last_request_cache_headers[$header] = $value;
+                
+                // Store for overall accumulation
                 if (!isset($this->cache_headers[$header])) {
                     $this->cache_headers[$header] = [];
                 }
@@ -3192,6 +3215,52 @@ class MicroChaos_Request_Generator {
      */
     public function get_cache_headers() {
         return $this->cache_headers;
+    }
+
+    /**
+     * Reset cache headers collection
+     *
+     * Clears the accumulated cache headers data
+     */
+    public function reset_cache_headers() {
+        $this->cache_headers = [];
+    }
+
+    /**
+     * Get cache headers for the last request
+     *
+     * @return array Cache headers from the last request
+     */
+    public function get_last_request_cache_headers() {
+        return $this->last_request_cache_headers;
+    }
+
+    /**
+     * Format cache headers for display
+     *
+     * @param array $headers Cache headers to format
+     * @return string Formatted cache headers string
+     */
+    private function format_cache_headers_for_display($headers) {
+        $display_parts = [];
+        
+        // Focus on Pressable-specific headers
+        if (isset($headers['x-ac'])) {
+            $display_parts[] = "x-ac: {$headers['x-ac']}";
+        }
+        
+        if (isset($headers['x-nananana'])) {
+            $display_parts[] = "x-nananana: {$headers['x-nananana']}";
+        }
+        
+        // Add other cache headers if present
+        foreach (['x-cache', 'age'] as $header) {
+            if (isset($headers[$header])) {
+                $display_parts[] = "$header: {$headers[$header]}";
+            }
+        }
+        
+        return empty($display_parts) ? '' : '[' . implode('] [', $display_parts) . ']';
     }
 
     /**
@@ -3846,30 +3915,32 @@ class MicroChaos_Cache_Analyzer {
             'summary' => [],
         ];
 
-        // Calculate batcache hit ratio if x-nananana is present
-        if (isset($this->cache_headers['x-nananana'])) {
-            $batcache_hits = array_sum($this->cache_headers['x-nananana']);
-            $hit_ratio = round(($batcache_hits / $total_requests) * 100, 2);
-            $report['summary']['batcache_hit_ratio'] = $hit_ratio;
+        // Calculate percentage breakdowns for each header type
+        foreach ($this->cache_headers as $header => $values) {
+            $total_for_header = array_sum($values);
+            $report['summary'][$header . '_breakdown'] = [];
+            
+            foreach ($values as $value => $count) {
+                $percentage = round(($count / $total_for_header) * 100, 1);
+                $report['summary'][$header . '_breakdown'][$value] = [
+                    'count' => $count,
+                    'percentage' => $percentage
+                ];
+            }
         }
 
-        // Calculate edge cache hit ratio if x-ac is present
-        if (isset($this->cache_headers['x-ac'])) {
-            $edge_hits = isset($this->cache_headers['x-ac']['HIT']) ? $this->cache_headers['x-ac']['HIT'] : 0;
-            $hit_ratio = round(($edge_hits / $total_requests) * 100, 2);
-            $report['summary']['edge_cache_hit_ratio'] = $hit_ratio;
-        }
-
-        // If age headers present, calculate average cache age
+        // Calculate average cache age if available
         if (isset($this->cache_headers['age'])) {
             $total_age = 0;
             $age_count = 0;
             foreach ($this->cache_headers['age'] as $age => $count) {
-                $total_age += $age * $count;
+                $total_age += intval($age) * $count;
                 $age_count += $count;
             }
-            $avg_age = round($total_age / $age_count, 2);
-            $report['summary']['average_cache_age'] = $avg_age;
+            if ($age_count > 0) {
+                $avg_age = round($total_age / $age_count, 1);
+                $report['summary']['average_cache_age'] = $avg_age;
+            }
         }
 
         return $report;
@@ -3888,31 +3959,52 @@ class MicroChaos_Cache_Analyzer {
             return;
         }
 
-        $report = $this->generate_report($total_requests);
-
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("📦 Cache Header Summary:");
+            \WP_CLI::log("📦 Pressable Cache Header Summary:");
 
-            // Output batcache hit ratio
-            if (isset($report['summary']['batcache_hit_ratio'])) {
-                \WP_CLI::log("   🦇 Batcache Hit Ratio: {$report['summary']['batcache_hit_ratio']}%");
+            // Output Edge Cache (x-ac) breakdown
+            if (isset($this->cache_headers['x-ac'])) {
+                \WP_CLI::log("   🌐 Edge Cache (x-ac):");
+                $total_x_ac = array_sum($this->cache_headers['x-ac']);
+                foreach ($this->cache_headers['x-ac'] as $value => $count) {
+                    $percentage = round(($count / $total_x_ac) * 100, 1);
+                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                }
             }
 
-            // Output edge cache hit ratio
-            if (isset($report['summary']['edge_cache_hit_ratio'])) {
-                \WP_CLI::log("   🌐 Edge Cache Hit Ratio: {$report['summary']['edge_cache_hit_ratio']}%");
+            // Output Batcache (x-nananana) breakdown
+            if (isset($this->cache_headers['x-nananana'])) {
+                \WP_CLI::log("   🦇 Batcache (x-nananana):");
+                $total_batcache = array_sum($this->cache_headers['x-nananana']);
+                foreach ($this->cache_headers['x-nananana'] as $value => $count) {
+                    $percentage = round(($count / $total_batcache) * 100, 1);
+                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                }
             }
 
-            // Output average cache age
-            if (isset($report['summary']['average_cache_age'])) {
-                \WP_CLI::log("   ⏲ Average Cache Age: {$report['summary']['average_cache_age']} seconds");
+            // Output other cache headers if present
+            foreach (['x-cache', 'age', 'x-cache-hits'] as $header) {
+                if (isset($this->cache_headers[$header])) {
+                    \WP_CLI::log("   {$header}:");
+                    $total_header = array_sum($this->cache_headers[$header]);
+                    foreach ($this->cache_headers[$header] as $value => $count) {
+                        $percentage = round(($count / $total_header) * 100, 1);
+                        \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                    }
+                }
             }
 
-            // Print detailed header statistics
-            foreach ($this->cache_headers as $header => $values) {
-                \WP_CLI::log("   $header:");
-                foreach ($values as $val => $count) {
-                    \WP_CLI::log("     $val: $count");
+            // Output average cache age if available
+            if (isset($this->cache_headers['age'])) {
+                $total_age = 0;
+                $age_count = 0;
+                foreach ($this->cache_headers['age'] as $age => $count) {
+                    $total_age += intval($age) * $count;
+                    $age_count += $count;
+                }
+                if ($age_count > 0) {
+                    $avg_age = round($total_age / $age_count, 1);
+                    \WP_CLI::log("   ⏲ Average Cache Age: {$avg_age} seconds");
                 }
             }
         }
@@ -4327,7 +4419,7 @@ class MicroChaos_Commands {
      * : Track and analyze resource utilization trends over time. Useful for detecting memory leaks.
      *
      * [--cache-headers]
-     * : Collect and summarize response cache headers like x-ac and x-nananana.
+     * : Collect and analyze Pressable-specific cache headers (x-ac for Edge Cache, x-nananana for Batcache).
      *
      * [--rotation-mode=<mode>]
      * : How to rotate through endpoints when multiple are specified. Options: serial, random. Default: serial.
@@ -4780,9 +4872,9 @@ class MicroChaos_Commands {
                 // Async mode - group by URL for efficiency
                 $url_groups = array_count_values($burst_urls);
 
-                foreach ($url_groups as $url => $count) {
+                foreach ($url_groups as $url => $url_count) {
                     $batch_results = $request_generator->fire_requests_async(
-                        $url, $log_path, $cookies, $count, $method, $body
+                        $url, $log_path, $cookies, $url_count, $method, $body
                     );
                     $results = array_merge($results, $batch_results);
                 }
@@ -4810,10 +4902,12 @@ class MicroChaos_Commands {
             if ($collect_cache_headers) {
                 $cache_headers = $request_generator->get_cache_headers();
                 foreach ($cache_headers as $header => $values) {
-                    foreach ($values as $value => $count) {
+                    foreach ($values as $value => $header_count) {
                         $cache_analyzer->collect_headers([$header => $value]);
                     }
                 }
+                // Reset cache headers to prevent accumulation across bursts
+                $request_generator->reset_cache_headers();
             }
             
             // Log burst completion to integration logger if enabled
@@ -5105,9 +5199,9 @@ class MicroChaos_Commands {
             // Group by URL for efficiency
             $url_groups = array_count_values($burst_urls);
             
-            foreach ($url_groups as $url => $count) {
+            foreach ($url_groups as $url => $url_count) {
                 $batch_results = $request_generator->fire_requests_async(
-                    $url, $log_path, $cookies, $count, $method, $body
+                    $url, $log_path, $cookies, $url_count, $method, $body
                 );
                 $results = array_merge($results, $batch_results);
             }
@@ -5120,10 +5214,12 @@ class MicroChaos_Commands {
             if ($collect_cache_headers) {
                 $cache_headers = $request_generator->get_cache_headers();
                 foreach ($cache_headers as $header => $values) {
-                    foreach ($values as $value => $count) {
+                    foreach ($values as $value => $header_count) {
                         $cache_analyzer->collect_headers([$header => $value]);
                     }
                 }
+                // Reset cache headers to prevent accumulation across bursts
+                $request_generator->reset_cache_headers();
             }
             
             // Generate summary for this concurrency level

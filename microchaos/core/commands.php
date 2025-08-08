@@ -166,7 +166,7 @@ class MicroChaos_Commands {
      * : Track and analyze resource utilization trends over time. Useful for detecting memory leaks.
      *
      * [--cache-headers]
-     * : Collect and summarize response cache headers like x-ac and x-nananana.
+     * : Collect and analyze Pressable-specific cache headers (x-ac for Edge Cache, x-nananana for Batcache).
      *
      * [--rotation-mode=<mode>]
      * : How to rotate through endpoints when multiple are specified. Options: serial, random. Default: serial.
@@ -619,9 +619,9 @@ class MicroChaos_Commands {
                 // Async mode - group by URL for efficiency
                 $url_groups = array_count_values($burst_urls);
 
-                foreach ($url_groups as $url => $count) {
+                foreach ($url_groups as $url => $url_count) {
                     $batch_results = $request_generator->fire_requests_async(
-                        $url, $log_path, $cookies, $count, $method, $body
+                        $url, $log_path, $cookies, $url_count, $method, $body
                     );
                     $results = array_merge($results, $batch_results);
                 }
@@ -649,10 +649,12 @@ class MicroChaos_Commands {
             if ($collect_cache_headers) {
                 $cache_headers = $request_generator->get_cache_headers();
                 foreach ($cache_headers as $header => $values) {
-                    foreach ($values as $value => $count) {
+                    foreach ($values as $value => $header_count) {
                         $cache_analyzer->collect_headers([$header => $value]);
                     }
                 }
+                // Reset cache headers to prevent accumulation across bursts
+                $request_generator->reset_cache_headers();
             }
             
             // Log burst completion to integration logger if enabled
@@ -944,9 +946,9 @@ class MicroChaos_Commands {
             // Group by URL for efficiency
             $url_groups = array_count_values($burst_urls);
             
-            foreach ($url_groups as $url => $count) {
+            foreach ($url_groups as $url => $url_count) {
                 $batch_results = $request_generator->fire_requests_async(
-                    $url, $log_path, $cookies, $count, $method, $body
+                    $url, $log_path, $cookies, $url_count, $method, $body
                 );
                 $results = array_merge($results, $batch_results);
             }
@@ -959,10 +961,12 @@ class MicroChaos_Commands {
             if ($collect_cache_headers) {
                 $cache_headers = $request_generator->get_cache_headers();
                 foreach ($cache_headers as $header => $values) {
-                    foreach ($values as $value => $count) {
+                    foreach ($values as $value => $header_count) {
                         $cache_analyzer->collect_headers([$header => $value]);
                     }
                 }
+                // Reset cache headers to prevent accumulation across bursts
+                $request_generator->reset_cache_headers();
             }
             
             // Generate summary for this concurrency level

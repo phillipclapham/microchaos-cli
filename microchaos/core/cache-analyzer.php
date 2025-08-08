@@ -72,30 +72,32 @@ class MicroChaos_Cache_Analyzer {
             'summary' => [],
         ];
 
-        // Calculate batcache hit ratio if x-nananana is present
-        if (isset($this->cache_headers['x-nananana'])) {
-            $batcache_hits = array_sum($this->cache_headers['x-nananana']);
-            $hit_ratio = round(($batcache_hits / $total_requests) * 100, 2);
-            $report['summary']['batcache_hit_ratio'] = $hit_ratio;
+        // Calculate percentage breakdowns for each header type
+        foreach ($this->cache_headers as $header => $values) {
+            $total_for_header = array_sum($values);
+            $report['summary'][$header . '_breakdown'] = [];
+            
+            foreach ($values as $value => $count) {
+                $percentage = round(($count / $total_for_header) * 100, 1);
+                $report['summary'][$header . '_breakdown'][$value] = [
+                    'count' => $count,
+                    'percentage' => $percentage
+                ];
+            }
         }
 
-        // Calculate edge cache hit ratio if x-ac is present
-        if (isset($this->cache_headers['x-ac'])) {
-            $edge_hits = isset($this->cache_headers['x-ac']['HIT']) ? $this->cache_headers['x-ac']['HIT'] : 0;
-            $hit_ratio = round(($edge_hits / $total_requests) * 100, 2);
-            $report['summary']['edge_cache_hit_ratio'] = $hit_ratio;
-        }
-
-        // If age headers present, calculate average cache age
+        // Calculate average cache age if available
         if (isset($this->cache_headers['age'])) {
             $total_age = 0;
             $age_count = 0;
             foreach ($this->cache_headers['age'] as $age => $count) {
-                $total_age += $age * $count;
+                $total_age += intval($age) * $count;
                 $age_count += $count;
             }
-            $avg_age = round($total_age / $age_count, 2);
-            $report['summary']['average_cache_age'] = $avg_age;
+            if ($age_count > 0) {
+                $avg_age = round($total_age / $age_count, 1);
+                $report['summary']['average_cache_age'] = $avg_age;
+            }
         }
 
         return $report;
@@ -114,31 +116,52 @@ class MicroChaos_Cache_Analyzer {
             return;
         }
 
-        $report = $this->generate_report($total_requests);
-
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("📦 Cache Header Summary:");
+            \WP_CLI::log("📦 Pressable Cache Header Summary:");
 
-            // Output batcache hit ratio
-            if (isset($report['summary']['batcache_hit_ratio'])) {
-                \WP_CLI::log("   🦇 Batcache Hit Ratio: {$report['summary']['batcache_hit_ratio']}%");
+            // Output Edge Cache (x-ac) breakdown
+            if (isset($this->cache_headers['x-ac'])) {
+                \WP_CLI::log("   🌐 Edge Cache (x-ac):");
+                $total_x_ac = array_sum($this->cache_headers['x-ac']);
+                foreach ($this->cache_headers['x-ac'] as $value => $count) {
+                    $percentage = round(($count / $total_x_ac) * 100, 1);
+                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                }
             }
 
-            // Output edge cache hit ratio
-            if (isset($report['summary']['edge_cache_hit_ratio'])) {
-                \WP_CLI::log("   🌐 Edge Cache Hit Ratio: {$report['summary']['edge_cache_hit_ratio']}%");
+            // Output Batcache (x-nananana) breakdown
+            if (isset($this->cache_headers['x-nananana'])) {
+                \WP_CLI::log("   🦇 Batcache (x-nananana):");
+                $total_batcache = array_sum($this->cache_headers['x-nananana']);
+                foreach ($this->cache_headers['x-nananana'] as $value => $count) {
+                    $percentage = round(($count / $total_batcache) * 100, 1);
+                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                }
             }
 
-            // Output average cache age
-            if (isset($report['summary']['average_cache_age'])) {
-                \WP_CLI::log("   ⏲ Average Cache Age: {$report['summary']['average_cache_age']} seconds");
+            // Output other cache headers if present
+            foreach (['x-cache', 'age', 'x-cache-hits'] as $header) {
+                if (isset($this->cache_headers[$header])) {
+                    \WP_CLI::log("   {$header}:");
+                    $total_header = array_sum($this->cache_headers[$header]);
+                    foreach ($this->cache_headers[$header] as $value => $count) {
+                        $percentage = round(($count / $total_header) * 100, 1);
+                        \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                    }
+                }
             }
 
-            // Print detailed header statistics
-            foreach ($this->cache_headers as $header => $values) {
-                \WP_CLI::log("   $header:");
-                foreach ($values as $val => $count) {
-                    \WP_CLI::log("     $val: $count");
+            // Output average cache age if available
+            if (isset($this->cache_headers['age'])) {
+                $total_age = 0;
+                $age_count = 0;
+                foreach ($this->cache_headers['age'] as $age => $count) {
+                    $total_age += intval($age) * $count;
+                    $age_count += $count;
+                }
+                if ($age_count > 0) {
+                    $avg_age = round($total_age / $age_count, 1);
+                    \WP_CLI::log("   ⏲ Average Cache Age: {$avg_age} seconds");
                 }
             }
         }

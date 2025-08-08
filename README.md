@@ -10,7 +10,7 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ## Current Bugs
 
-- [ ] `--cache-headers` is currently breaking the `--burst` flag.
+*No known bugs at this time.*
 
 ---
 
@@ -278,7 +278,7 @@ wp microchaos paralleltest --file=test-plans.json --workers=5
 
 - `--resource-logging` Print memory and CPU usage during test
 - `--resource-trends` Track and analyze resource usage trends over time to detect memory leaks
-- `--cache-headers` Parse cache headers and summarize hit/miss behavior
+- `--cache-headers` Parse Pressable-specific cache headers (x-ac, x-nananana) and summarize cache behavior
 - `--save-baseline=<n>` Save results as a baseline for future comparisons
 - `--compare-baseline=<n>` Compare results with a saved baseline
 - `--monitoring-integration` Enable external monitoring integration via PHP error log
@@ -447,6 +447,33 @@ Run test with monitoring integration enabled for external metrics collection
 wp microchaos loadtest --endpoint=home --count=50 --monitoring-integration
 ```
 
+### Cache Header Analysis (Pressable)
+
+Analyze Pressable's cache behavior with detailed per-request and summary reporting
+
+```bash
+wp microchaos loadtest --endpoint=home --count=50 --cache-headers --warm-cache
+```
+
+Example per-request output:
+```
+-> 200 in 0.032s [x-ac: 3.dca_atomic_dca STALE] [x-nananana: MISS]
+-> 200 in 0.024s [x-ac: 3.dca_atomic_dca UPDATING] [x-nananana: HIT]
+```
+
+Example cache summary:
+```
+📦 Pressable Cache Header Summary:
+   🌐 Edge Cache (x-ac):
+     3.dca_atomic_dca STALE: 25 (50.0%)
+     3.dca_atomic_dca UPDATING: 15 (30.0%)
+     3.dca_atomic_dca HIT: 10 (20.0%)
+     
+   🦇 Batcache (x-nananana):
+     MISS: 30 (60.0%)
+     HIT: 20 (40.0%)
+```
+
 ---
 
 ## 📊 What You Get
@@ -528,18 +555,19 @@ Each request is timestamped, status-coded, cache-labeled, and readable at a glan
 ### 📦 Cache Header Summary (with --cache-headers)
 
 ```bash
-📦 Cache Header Summary:
-   🦇 Batcache Hit Ratio: 0%
-   🌐 Edge Cache Hit Ratio: 100%
-
-   x-ac:
-     3.dca _atomic_dca STALE: 3
-     3.dca _atomic_dca UPDATING: 7
+📦 Pressable Cache Header Summary:
+   🌐 Edge Cache (x-ac):
+     3.dca_atomic_dca STALE: 3 (30.0%)
+     3.dca_atomic_dca UPDATING: 7 (70.0%)
+     
+   🦇 Batcache (x-nananana):
+     MISS: 6 (60.0%)
+     HIT: 4 (40.0%)
 
    ⏲ Average Cache Age: 42.5 seconds
 ```
 
-Parsed and summarized directly from HTTP response headers—no deep instrumentation required.
+Parsed and summarized directly from Pressable-specific HTTP response headers—no deep instrumentation required.
 
 ---
 

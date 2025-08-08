@@ -29,6 +29,13 @@ class MicroChaos_Request_Generator {
     private $cache_headers = [];
 
     /**
+     * Last request cache headers
+     *
+     * @var array
+     */
+    private $last_request_cache_headers = [];
+
+    /**
      * Constructor
      *
      * @param array $options Options for the request generator
@@ -162,7 +169,11 @@ class MicroChaos_Request_Generator {
             }
 
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("-> {$code} in {$duration}s");
+                $cache_display = '';
+                if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
+                    $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
+                }
+                \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
             }
 
             $results[] = [
@@ -251,7 +262,11 @@ class MicroChaos_Request_Generator {
         }
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("-> {$code} in {$duration}s");
+            $cache_display = '';
+            if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
+                $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
+            }
+            \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
         }
 
         // Return result for reporting
@@ -308,9 +323,17 @@ class MicroChaos_Request_Generator {
         // Headers to track (Pressable specific and general cache headers)
         $cache_headers = ['x-ac', 'x-nananana', 'x-cache', 'age', 'x-cache-hits'];
 
+        // Store current request cache headers for display
+        $this->last_request_cache_headers = [];
+
         foreach ($cache_headers as $header) {
             if (isset($headers[$header])) {
                 $value = $headers[$header];
+                
+                // Store for current request display
+                $this->last_request_cache_headers[$header] = $value;
+                
+                // Store for overall accumulation
                 if (!isset($this->cache_headers[$header])) {
                     $this->cache_headers[$header] = [];
                 }
@@ -329,6 +352,52 @@ class MicroChaos_Request_Generator {
      */
     public function get_cache_headers() {
         return $this->cache_headers;
+    }
+
+    /**
+     * Reset cache headers collection
+     *
+     * Clears the accumulated cache headers data
+     */
+    public function reset_cache_headers() {
+        $this->cache_headers = [];
+    }
+
+    /**
+     * Get cache headers for the last request
+     *
+     * @return array Cache headers from the last request
+     */
+    public function get_last_request_cache_headers() {
+        return $this->last_request_cache_headers;
+    }
+
+    /**
+     * Format cache headers for display
+     *
+     * @param array $headers Cache headers to format
+     * @return string Formatted cache headers string
+     */
+    private function format_cache_headers_for_display($headers) {
+        $display_parts = [];
+        
+        // Focus on Pressable-specific headers
+        if (isset($headers['x-ac'])) {
+            $display_parts[] = "x-ac: {$headers['x-ac']}";
+        }
+        
+        if (isset($headers['x-nananana'])) {
+            $display_parts[] = "x-nananana: {$headers['x-nananana']}";
+        }
+        
+        // Add other cache headers if present
+        foreach (['x-cache', 'age'] as $header) {
+            if (isset($headers[$header])) {
+                $display_parts[] = "$header: {$headers[$header]}";
+            }
+        }
+        
+        return empty($display_parts) ? '' : '[' . implode('] [', $display_parts) . ']';
     }
 
     /**
