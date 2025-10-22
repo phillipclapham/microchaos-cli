@@ -20,14 +20,14 @@ class MicroChaos_Resource_Monitor {
      * @var array
      */
     private $resource_results = [];
-    
+
     /**
      * Whether to track resource trends over time
      *
      * @var bool
      */
     private $track_trends = false;
-    
+
     /**
      * Timestamp of monitoring start
      *
@@ -36,14 +36,23 @@ class MicroChaos_Resource_Monitor {
     private $start_time = 0;
 
     /**
+     * Baseline storage implementation
+     *
+     * @var MicroChaos_Baseline_Storage
+     */
+    private $baseline_storage;
+
+    /**
      * Constructor
      *
      * @param array $options Options for resource monitoring
+     * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
      */
-    public function __construct($options = []) {
+    public function __construct($options = [], $storage = null) {
         $this->resource_results = [];
         $this->track_trends = isset($options['track_trends']) ? (bool)$options['track_trends'] : false;
         $this->start_time = microtime(true);
+        $this->baseline_storage = $storage ?? new MicroChaos_Transient_Baseline_Storage('microchaos_resource_baseline');
     }
 
     /**
@@ -222,33 +231,24 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Save current results as baseline
-     * 
+     *
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
     public function save_baseline($name = 'default') {
         $baseline = $this->generate_summary();
-        
-        // Store in a transient or option for persistence
-        if (function_exists('set_transient')) {
-            set_transient('microchaos_resource_baseline_' . $name, $baseline, 86400 * 30); // 30 days
-        }
-        
+        $this->baseline_storage->save($name, $baseline);
         return $baseline;
     }
-    
+
     /**
      * Get saved baseline data
-     * 
+     *
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
     public function get_baseline($name = 'default') {
-        if (function_exists('get_transient')) {
-            return get_transient('microchaos_resource_baseline_' . $name);
-        }
-        
-        return null;
+        return $this->baseline_storage->get($name);
     }
     
     /**

@@ -22,10 +22,20 @@ class MicroChaos_Reporting_Engine {
     private $results = [];
 
     /**
-     * Constructor
+     * Baseline storage implementation
+     *
+     * @var MicroChaos_Baseline_Storage
      */
-    public function __construct() {
+    private $baseline_storage;
+
+    /**
+     * Constructor
+     *
+     * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
+     */
+    public function __construct($storage = null) {
         $this->results = [];
+        $this->baseline_storage = $storage ?? new MicroChaos_Transient_Baseline_Storage('microchaos_baseline');
     }
     
     /**
@@ -190,33 +200,24 @@ class MicroChaos_Reporting_Engine {
     
     /**
      * Save current results as baseline
-     * 
+     *
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
     public function save_baseline($name = 'default') {
         $baseline = $this->generate_summary();
-        
-        // Store in a transient or option for persistence
-        if (function_exists('set_transient')) {
-            set_transient('microchaos_baseline_' . $name, $baseline, 86400 * 30); // 30 days
-        }
-        
+        $this->baseline_storage->save($name, $baseline);
         return $baseline;
     }
-    
+
     /**
      * Get saved baseline data
-     * 
+     *
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
     public function get_baseline($name = 'default') {
-        if (function_exists('get_transient')) {
-            return get_transient('microchaos_baseline_' . $name);
-        }
-        
-        return null;
+        return $this->baseline_storage->get($name);
     }
 
     /**

@@ -11,13 +11,282 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-08-08T15:40:47.099Z
+ * Generated on: 2025-10-22T21:06:19.042Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
  */
 
 if (defined('WP_CLI') && WP_CLI) {
+
+class MicroChaos_Constants {
+    /**
+     * Default baseline storage TTL (30 days in seconds)
+     */
+    const BASELINE_TTL = 2592000; // 30 * 24 * 60 * 60
+
+    /**
+     * Default timeout for parallel test execution (10 minutes in seconds)
+     */
+    const DEFAULT_PARALLEL_TIMEOUT = 600;
+
+    /**
+     * Default number of parallel workers
+     */
+    const DEFAULT_WORKERS = 3;
+
+    /**
+     * Time conversion constants
+     */
+    const SECONDS_PER_MINUTE = 60;
+    const SECONDS_PER_HOUR = 3600;
+    const SECONDS_PER_DAY = 86400;
+
+    /**
+     * HTTP status codes (common)
+     */
+    const HTTP_OK = 200;
+    const HTTP_NOT_FOUND = 404;
+    const HTTP_SERVER_ERROR = 500;
+}
+
+interface MicroChaos_Baseline_Storage {
+    /**
+     * Save baseline data with a given key
+     *
+     * @param string $key Storage key (will be sanitized)
+     * @param mixed $data Data to store
+     * @param int|null $ttl Time-to-live in seconds (null for default)
+     * @return bool Success status
+     */
+    public function save($key, $data, $ttl = null);
+
+    /**
+     * Retrieve baseline data by key
+     *
+     * @param string $key Storage key
+     * @return mixed|null Stored data or null if not found
+     */
+    public function get($key);
+
+    /**
+     * Check if a baseline exists
+     *
+     * @param string $key Storage key
+     * @return bool True if exists, false otherwise
+     */
+    public function exists($key);
+
+    /**
+     * Delete a baseline
+     *
+     * @param string $key Storage key
+     * @return bool Success status
+     */
+    public function delete($key);
+}
+
+class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Storage {
+    /**
+     * Prefix for transient keys
+     *
+     * @var string
+     */
+    private $prefix;
+
+    /**
+     * Default TTL in seconds (30 days)
+     *
+     * @var int
+     */
+    private $default_ttl = MicroChaos_Constants::BASELINE_TTL;
+
+    /**
+     * Directory for file-based fallback storage
+     *
+     * @var string
+     */
+    private $storage_dir;
+
+    /**
+     * Constructor
+     *
+     * @param string $prefix Prefix for storage keys (e.g., 'microchaos_baseline', 'microchaos_resource_baseline')
+     */
+    public function __construct($prefix = 'microchaos_baseline') {
+        $this->prefix = rtrim($prefix, '_') . '_';
+        $this->storage_dir = WP_CONTENT_DIR . '/microchaos/baselines';
+    }
+
+    /**
+     * Save baseline data with a given key
+     *
+     * @param string $key Storage key (will be sanitized)
+     * @param mixed $data Data to store
+     * @param int|null $ttl Time-to-live in seconds (null for default)
+     * @return bool Success status
+     */
+    public function save($key, $data, $ttl = null) {
+        $ttl = $ttl ?? $this->default_ttl;
+        $sanitized_key = $this->sanitize_key($key);
+
+        // Try transients first
+        if (function_exists('set_transient')) {
+            $transient_key = $this->prefix . $sanitized_key;
+            $result = set_transient($transient_key, $data, $ttl);
+
+            if ($result) {
+                return true;
+            }
+        }
+
+        // Fallback to file storage
+        return $this->save_to_file($sanitized_key, $data);
+    }
+
+    /**
+     * Retrieve baseline data by key
+     *
+     * @param string $key Storage key
+     * @return mixed|null Stored data or null if not found
+     */
+    public function get($key) {
+        $sanitized_key = $this->sanitize_key($key);
+
+        // Try transients first
+        if (function_exists('get_transient')) {
+            $transient_key = $this->prefix . $sanitized_key;
+            $data = get_transient($transient_key);
+
+            if ($data !== false) {
+                return $data;
+            }
+        }
+
+        // Fallback to file storage
+        return $this->load_from_file($sanitized_key);
+    }
+
+    /**
+     * Check if a baseline exists
+     *
+     * @param string $key Storage key
+     * @return bool True if exists, false otherwise
+     */
+    public function exists($key) {
+        $sanitized_key = $this->sanitize_key($key);
+
+        // Check transient
+        if (function_exists('get_transient')) {
+            $transient_key = $this->prefix . $sanitized_key;
+            if (get_transient($transient_key) !== false) {
+                return true;
+            }
+        }
+
+        // Check file storage
+        $filepath = $this->get_file_path($sanitized_key);
+        return file_exists($filepath);
+    }
+
+    /**
+     * Delete a baseline
+     *
+     * @param string $key Storage key
+     * @return bool Success status
+     */
+    public function delete($key) {
+        $sanitized_key = $this->sanitize_key($key);
+        $success = true;
+
+        // Delete transient
+        if (function_exists('delete_transient')) {
+            $transient_key = $this->prefix . $sanitized_key;
+            $success = delete_transient($transient_key);
+        }
+
+        // Delete file if exists
+        $filepath = $this->get_file_path($sanitized_key);
+        if (file_exists($filepath)) {
+            $success = unlink($filepath) && $success;
+        }
+
+        return $success;
+    }
+
+    /**
+     * Sanitize storage key
+     *
+     * @param string $key Raw key
+     * @return string Sanitized key
+     */
+    private function sanitize_key($key) {
+        if (function_exists('sanitize_key')) {
+            return sanitize_key($key);
+        }
+
+        // Fallback sanitization if WordPress functions unavailable
+        return preg_replace('/[^a-z0-9_\-]/', '', strtolower($key));
+    }
+
+    /**
+     * Get file path for a given key
+     *
+     * @param string $sanitized_key Already sanitized key
+     * @return string Full file path
+     */
+    private function get_file_path($sanitized_key) {
+        $filename = sanitize_file_name($this->prefix . $sanitized_key . '.json');
+        return $this->storage_dir . '/' . $filename;
+    }
+
+    /**
+     * Save data to file storage
+     *
+     * @param string $sanitized_key Already sanitized key
+     * @param mixed $data Data to store
+     * @return bool Success status
+     */
+    private function save_to_file($sanitized_key, $data) {
+        // Create directory if needed
+        if (!file_exists($this->storage_dir)) {
+            if (!mkdir($this->storage_dir, 0755, true)) {
+                return false;
+            }
+        }
+
+        $filepath = $this->get_file_path($sanitized_key);
+        $json_data = json_encode($data, JSON_PRETTY_PRINT);
+
+        if ($json_data === false) {
+            return false;
+        }
+
+        return file_put_contents($filepath, $json_data) !== false;
+    }
+
+    /**
+     * Load data from file storage
+     *
+     * @param string $sanitized_key Already sanitized key
+     * @return mixed|null Stored data or null if not found
+     */
+    private function load_from_file($sanitized_key) {
+        $filepath = $this->get_file_path($sanitized_key);
+
+        if (!file_exists($filepath)) {
+            return null;
+        }
+
+        $json_data = file_get_contents($filepath);
+        if ($json_data === false) {
+            return null;
+        }
+
+        $data = json_decode($json_data, true);
+        return $data !== null ? $data : null;
+    }
+}
 
 class MicroChaos_Thresholds {
     // Response time thresholds (seconds)
@@ -572,7 +841,7 @@ class MicroChaos_ParallelTest {
      *
      * @var int
      */
-    private $workers = 3;
+    private $workers = MicroChaos_Constants::DEFAULT_WORKERS;
 
     /**
      * Output format
@@ -628,8 +897,22 @@ class MicroChaos_ParallelTest {
      *
      * @var int
      */
-    private $global_timeout = 600; // 10 minutes default
-    
+    private $global_timeout = MicroChaos_Constants::DEFAULT_PARALLEL_TIMEOUT;
+
+    /**
+     * Baseline storage implementation
+     *
+     * @var MicroChaos_Baseline_Storage
+     */
+    private $baseline_storage;
+
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        $this->baseline_storage = new MicroChaos_Transient_Baseline_Storage('microchaos_paralleltest_baseline');
+    }
+
     /**
      * Run parallel load tests using multiple workers.
      *
@@ -716,9 +999,9 @@ class MicroChaos_ParallelTest {
         // Parse command options
         $file_path = $assoc_args['file'] ?? null;
         $json_plan = $assoc_args['plan'] ?? null;
-        $this->workers = intval($assoc_args['workers'] ?? 3);
+        $this->workers = intval($assoc_args['workers'] ?? MicroChaos_Constants::DEFAULT_WORKERS);
         $this->output_format = $assoc_args['output'] ?? 'table';
-        $this->global_timeout = intval($assoc_args['timeout'] ?? 600);
+        $this->global_timeout = intval($assoc_args['timeout'] ?? MicroChaos_Constants::DEFAULT_PARALLEL_TIMEOUT);
         $export_path = $assoc_args['export'] ?? null;
         $export_format = $assoc_args['export-format'] ?? 'json';
         $export_detail = $assoc_args['export-detail'] ?? 'summary';
@@ -1102,7 +1385,7 @@ class MicroChaos_ParallelTest {
     
     /**
      * Save current results as a baseline for future comparison
-     * 
+     *
      * @param string $name Baseline name
      * @return bool Success status
      */
@@ -1111,7 +1394,7 @@ class MicroChaos_ParallelTest {
             \WP_CLI::warning("No results to save as baseline.");
             return false;
         }
-        
+
         $baseline_data = [
             'timestamp' => time(),
             'summary' => $this->results_summary,
@@ -1121,61 +1404,27 @@ class MicroChaos_ParallelTest {
                 'request_count' => count($this->results)
             ]
         ];
-        
-        if (function_exists('set_transient')) {
-            $transient_name = 'microchaos_paralleltest_baseline_' . sanitize_key($name);
-            $result = set_transient($transient_name, $baseline_data, 60 * 60 * 24 * 30); // 30 days
-            
-            if ($result) {
-                \WP_CLI::success("✅ Baseline '{$name}' saved successfully.");
-                return true;
-            } else {
-                \WP_CLI::warning("Failed to save baseline '{$name}'.");
-                return false;
-            }
+
+        $result = $this->baseline_storage->save($name, $baseline_data);
+
+        if ($result) {
+            \WP_CLI::success("✅ Baseline '{$name}' saved successfully.");
+            return true;
         } else {
-            // Fallback to file-based storage if transients are not available
-            $baseline_dir = WP_CONTENT_DIR . '/microchaos/baselines';
-            if (!file_exists($baseline_dir)) {
-                mkdir($baseline_dir, 0755, true);
-            }
-            
-            $baseline_file = $baseline_dir . '/' . sanitize_file_name($name) . '.json';
-            $result = file_put_contents($baseline_file, json_encode($baseline_data, JSON_PRETTY_PRINT));
-            
-            if ($result) {
-                \WP_CLI::success("✅ Baseline '{$name}' saved to file: {$baseline_file}");
-                return true;
-            } else {
-                \WP_CLI::warning("Failed to save baseline '{$name}' to file.");
-                return false;
-            }
+            \WP_CLI::warning("Failed to save baseline '{$name}'.");
+            return false;
         }
     }
-    
+
     /**
      * Load a previously saved baseline
-     * 
+     *
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
     private function load_baseline($name) {
-        $baseline_data = null;
-        
-        if (function_exists('get_transient')) {
-            $transient_name = 'microchaos_paralleltest_baseline_' . sanitize_key($name);
-            $baseline_data = get_transient($transient_name);
-        }
-        
-        if ($baseline_data === false) {
-            // Try file-based storage
-            $baseline_file = WP_CONTENT_DIR . '/microchaos/baselines/' . sanitize_file_name($name) . '.json';
-            if (file_exists($baseline_file)) {
-                $file_content = file_get_contents($baseline_file);
-                $baseline_data = json_decode($file_content, true);
-            }
-        }
-        
+        $baseline_data = $this->baseline_storage->get($name);
+
         if ($baseline_data) {
             \WP_CLI::log("📋 Loaded baseline '{$name}' from " . date('Y-m-d H:i:s', $baseline_data['timestamp']));
             return $baseline_data;
@@ -2391,15 +2640,15 @@ class MicroChaos_ParallelTest {
     private function format_time_duration($seconds) {
         $seconds = (int)$seconds;
         
-        if ($seconds < 60) {
+        if ($seconds < MicroChaos_Constants::SECONDS_PER_MINUTE) {
             return "{$seconds}s";
-        } elseif ($seconds < 3600) {
-            $minutes = floor($seconds / 60);
-            $remaining_seconds = $seconds % 60;
+        } elseif ($seconds < MicroChaos_Constants::SECONDS_PER_HOUR) {
+            $minutes = floor($seconds / MicroChaos_Constants::SECONDS_PER_MINUTE);
+            $remaining_seconds = $seconds % MicroChaos_Constants::SECONDS_PER_MINUTE;
             return "{$minutes}m {$remaining_seconds}s";
         } else {
-            $hours = floor($seconds / 3600);
-            $minutes = floor(($seconds % 3600) / 60);
+            $hours = floor($seconds / MicroChaos_Constants::SECONDS_PER_HOUR);
+            $minutes = floor(($seconds % MicroChaos_Constants::SECONDS_PER_HOUR) / MicroChaos_Constants::SECONDS_PER_MINUTE);
             return "{$hours}h {$minutes}m";
         }
     }
@@ -3314,14 +3563,14 @@ class MicroChaos_Resource_Monitor {
      * @var array
      */
     private $resource_results = [];
-    
+
     /**
      * Whether to track resource trends over time
      *
      * @var bool
      */
     private $track_trends = false;
-    
+
     /**
      * Timestamp of monitoring start
      *
@@ -3330,14 +3579,23 @@ class MicroChaos_Resource_Monitor {
     private $start_time = 0;
 
     /**
+     * Baseline storage implementation
+     *
+     * @var MicroChaos_Baseline_Storage
+     */
+    private $baseline_storage;
+
+    /**
      * Constructor
      *
      * @param array $options Options for resource monitoring
+     * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
      */
-    public function __construct($options = []) {
+    public function __construct($options = [], $storage = null) {
         $this->resource_results = [];
         $this->track_trends = isset($options['track_trends']) ? (bool)$options['track_trends'] : false;
         $this->start_time = microtime(true);
+        $this->baseline_storage = $storage ?? new MicroChaos_Transient_Baseline_Storage('microchaos_resource_baseline');
     }
 
     /**
@@ -3516,33 +3774,24 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Save current results as baseline
-     * 
+     *
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
     public function save_baseline($name = 'default') {
         $baseline = $this->generate_summary();
-        
-        // Store in a transient or option for persistence
-        if (function_exists('set_transient')) {
-            set_transient('microchaos_resource_baseline_' . $name, $baseline, 86400 * 30); // 30 days
-        }
-        
+        $this->baseline_storage->save($name, $baseline);
         return $baseline;
     }
-    
+
     /**
      * Get saved baseline data
-     * 
+     *
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
     public function get_baseline($name = 'default') {
-        if (function_exists('get_transient')) {
-            return get_transient('microchaos_resource_baseline_' . $name);
-        }
-        
-        return null;
+        return $this->baseline_storage->get($name);
     }
     
     /**
@@ -4020,10 +4269,20 @@ class MicroChaos_Reporting_Engine {
     private $results = [];
 
     /**
-     * Constructor
+     * Baseline storage implementation
+     *
+     * @var MicroChaos_Baseline_Storage
      */
-    public function __construct() {
+    private $baseline_storage;
+
+    /**
+     * Constructor
+     *
+     * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
+     */
+    public function __construct($storage = null) {
         $this->results = [];
+        $this->baseline_storage = $storage ?? new MicroChaos_Transient_Baseline_Storage('microchaos_baseline');
     }
     
     /**
@@ -4188,33 +4447,24 @@ class MicroChaos_Reporting_Engine {
     
     /**
      * Save current results as baseline
-     * 
+     *
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
     public function save_baseline($name = 'default') {
         $baseline = $this->generate_summary();
-        
-        // Store in a transient or option for persistence
-        if (function_exists('set_transient')) {
-            set_transient('microchaos_baseline_' . $name, $baseline, 86400 * 30); // 30 days
-        }
-        
+        $this->baseline_storage->save($name, $baseline);
         return $baseline;
     }
-    
+
     /**
      * Get saved baseline data
-     * 
+     *
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
     public function get_baseline($name = 'default') {
-        if (function_exists('get_transient')) {
-            return get_transient('microchaos_baseline_' . $name);
-        }
-        
-        return null;
+        return $this->baseline_storage->get($name);
     }
 
     /**

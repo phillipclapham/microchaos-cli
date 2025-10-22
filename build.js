@@ -17,6 +17,13 @@ const outputFile = path.join(outputDir, "microchaos-cli.php");
 const sources = {
   header: path.join(__dirname, "microchaos-cli.php"),
   components: [
+    // Load constants first
+    path.join(__dirname, "microchaos/core/constants.php"),
+    // Load interfaces
+    path.join(__dirname, "microchaos/core/interfaces/baseline-storage.php"),
+    // Load storage implementations
+    path.join(__dirname, "microchaos/core/storage/transient-baseline-storage.php"),
+    // Load core components
     path.join(__dirname, "microchaos/core/thresholds.php"),
     path.join(__dirname, "microchaos/core/integration-logger.php"),
     path.join(__dirname, "microchaos/core/parallel-test.php"),
@@ -64,15 +71,17 @@ for (const componentFile of sources.components) {
     .replace(/if \(!defined\('ABSPATH'\)[\s\S]+?exit;\s*\}/m, "")
     .replace(/if \(!defined\('WP_CLI'\)[\s\S]+?exit;\s*\}/m, "");
 
-  // Extract the class declaration and all its content
-  const classPattern = /class\s+([A-Za-z0-9_]+)[\s\S]+?^}/ms;
+  // Extract class or interface declaration and all its content
+  const classPattern = /(class|interface)\s+([A-Za-z0-9_]+)[\s\S]+?^}/ms;
   const classMatches = cleanedContent.match(classPattern);
 
   if (classMatches && classMatches[0]) {
     classContents.push(classMatches[0]);
   } else {
     console.warn(
-      `Warning: Could not extract class from ${path.basename(componentFile)}`
+      `Warning: Could not extract class/interface from ${path.basename(
+        componentFile
+      )}`
     );
   }
 }

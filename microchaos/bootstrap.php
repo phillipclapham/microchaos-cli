@@ -42,6 +42,16 @@ class MicroChaos_Bootstrap {
      * Load core component files
      */
     private static function load_core_components() {
+        // Load constants first
+        require_once MICROCHAOS_CORE_PATH . '/constants.php';
+
+        // Load interfaces
+        require_once MICROCHAOS_CORE_PATH . '/interfaces/baseline-storage.php';
+
+        // Load storage implementations
+        require_once MICROCHAOS_CORE_PATH . '/storage/transient-baseline-storage.php';
+
+        // Load core components
         $core_components = [
             'thresholds.php',
             'integration-logger.php',

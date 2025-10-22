@@ -27,7 +27,7 @@ class MicroChaos_ParallelTest {
      *
      * @var int
      */
-    private $workers = 3;
+    private $workers = MicroChaos_Constants::DEFAULT_WORKERS;
 
     /**
      * Output format
@@ -83,8 +83,22 @@ class MicroChaos_ParallelTest {
      *
      * @var int
      */
-    private $global_timeout = 600; // 10 minutes default
-    
+    private $global_timeout = MicroChaos_Constants::DEFAULT_PARALLEL_TIMEOUT;
+
+    /**
+     * Baseline storage implementation
+     *
+     * @var MicroChaos_Baseline_Storage
+     */
+    private $baseline_storage;
+
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        $this->baseline_storage = new MicroChaos_Transient_Baseline_Storage('microchaos_paralleltest_baseline');
+    }
+
     /**
      * Run parallel load tests using multiple workers.
      *
@@ -171,9 +185,9 @@ class MicroChaos_ParallelTest {
         // Parse command options
         $file_path = $assoc_args['file'] ?? null;
         $json_plan = $assoc_args['plan'] ?? null;
-        $this->workers = intval($assoc_args['workers'] ?? 3);
+        $this->workers = intval($assoc_args['workers'] ?? MicroChaos_Constants::DEFAULT_WORKERS);
         $this->output_format = $assoc_args['output'] ?? 'table';
-        $this->global_timeout = intval($assoc_args['timeout'] ?? 600);
+        $this->global_timeout = intval($assoc_args['timeout'] ?? MicroChaos_Constants::DEFAULT_PARALLEL_TIMEOUT);
         $export_path = $assoc_args['export'] ?? null;
         $export_format = $assoc_args['export-format'] ?? 'json';
         $export_detail = $assoc_args['export-detail'] ?? 'summary';
@@ -557,7 +571,7 @@ class MicroChaos_ParallelTest {
     
     /**
      * Save current results as a baseline for future comparison
-     * 
+     *
      * @param string $name Baseline name
      * @return bool Success status
      */
@@ -566,7 +580,7 @@ class MicroChaos_ParallelTest {
             \WP_CLI::warning("No results to save as baseline.");
             return false;
         }
-        
+
         $baseline_data = [
             'timestamp' => time(),
             'summary' => $this->results_summary,
@@ -576,61 +590,27 @@ class MicroChaos_ParallelTest {
                 'request_count' => count($this->results)
             ]
         ];
-        
-        if (function_exists('set_transient')) {
-            $transient_name = 'microchaos_paralleltest_baseline_' . sanitize_key($name);
-            $result = set_transient($transient_name, $baseline_data, 60 * 60 * 24 * 30); // 30 days
-            
-            if ($result) {
-                \WP_CLI::success("✅ Baseline '{$name}' saved successfully.");
-                return true;
-            } else {
-                \WP_CLI::warning("Failed to save baseline '{$name}'.");
-                return false;
-            }
+
+        $result = $this->baseline_storage->save($name, $baseline_data);
+
+        if ($result) {
+            \WP_CLI::success("✅ Baseline '{$name}' saved successfully.");
+            return true;
         } else {
-            // Fallback to file-based storage if transients are not available
-            $baseline_dir = WP_CONTENT_DIR . '/microchaos/baselines';
-            if (!file_exists($baseline_dir)) {
-                mkdir($baseline_dir, 0755, true);
-            }
-            
-            $baseline_file = $baseline_dir . '/' . sanitize_file_name($name) . '.json';
-            $result = file_put_contents($baseline_file, json_encode($baseline_data, JSON_PRETTY_PRINT));
-            
-            if ($result) {
-                \WP_CLI::success("✅ Baseline '{$name}' saved to file: {$baseline_file}");
-                return true;
-            } else {
-                \WP_CLI::warning("Failed to save baseline '{$name}' to file.");
-                return false;
-            }
+            \WP_CLI::warning("Failed to save baseline '{$name}'.");
+            return false;
         }
     }
-    
+
     /**
      * Load a previously saved baseline
-     * 
+     *
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
     private function load_baseline($name) {
-        $baseline_data = null;
-        
-        if (function_exists('get_transient')) {
-            $transient_name = 'microchaos_paralleltest_baseline_' . sanitize_key($name);
-            $baseline_data = get_transient($transient_name);
-        }
-        
-        if ($baseline_data === false) {
-            // Try file-based storage
-            $baseline_file = WP_CONTENT_DIR . '/microchaos/baselines/' . sanitize_file_name($name) . '.json';
-            if (file_exists($baseline_file)) {
-                $file_content = file_get_contents($baseline_file);
-                $baseline_data = json_decode($file_content, true);
-            }
-        }
-        
+        $baseline_data = $this->baseline_storage->get($name);
+
         if ($baseline_data) {
             \WP_CLI::log("📋 Loaded baseline '{$name}' from " . date('Y-m-d H:i:s', $baseline_data['timestamp']));
             return $baseline_data;
@@ -1846,15 +1826,15 @@ class MicroChaos_ParallelTest {
     private function format_time_duration($seconds) {
         $seconds = (int)$seconds;
         
-        if ($seconds < 60) {
+        if ($seconds < MicroChaos_Constants::SECONDS_PER_MINUTE) {
             return "{$seconds}s";
-        } elseif ($seconds < 3600) {
-            $minutes = floor($seconds / 60);
-            $remaining_seconds = $seconds % 60;
+        } elseif ($seconds < MicroChaos_Constants::SECONDS_PER_HOUR) {
+            $minutes = floor($seconds / MicroChaos_Constants::SECONDS_PER_MINUTE);
+            $remaining_seconds = $seconds % MicroChaos_Constants::SECONDS_PER_MINUTE;
             return "{$minutes}m {$remaining_seconds}s";
         } else {
-            $hours = floor($seconds / 3600);
-            $minutes = floor(($seconds % 3600) / 60);
+            $hours = floor($seconds / MicroChaos_Constants::SECONDS_PER_HOUR);
+            $minutes = floor(($seconds % MicroChaos_Constants::SECONDS_PER_HOUR) / MicroChaos_Constants::SECONDS_PER_MINUTE);
             return "{$hours}h {$minutes}m";
         }
     }
