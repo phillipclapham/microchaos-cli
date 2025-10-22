@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-10-22T21:06:19.042Z
+ * Generated on: 2025-10-22T21:35:23.624Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -59,7 +59,7 @@ interface MicroChaos_Baseline_Storage {
      * @param int|null $ttl Time-to-live in seconds (null for default)
      * @return bool Success status
      */
-    public function save($key, $data, $ttl = null);
+    public function save(string $key, $data, ?int $ttl = null): bool;
 
     /**
      * Retrieve baseline data by key
@@ -67,7 +67,7 @@ interface MicroChaos_Baseline_Storage {
      * @param string $key Storage key
      * @return mixed|null Stored data or null if not found
      */
-    public function get($key);
+    public function get(string $key);
 
     /**
      * Check if a baseline exists
@@ -75,7 +75,7 @@ interface MicroChaos_Baseline_Storage {
      * @param string $key Storage key
      * @return bool True if exists, false otherwise
      */
-    public function exists($key);
+    public function exists(string $key): bool;
 
     /**
      * Delete a baseline
@@ -83,7 +83,7 @@ interface MicroChaos_Baseline_Storage {
      * @param string $key Storage key
      * @return bool Success status
      */
-    public function delete($key);
+    public function delete(string $key): bool;
 }
 
 class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Storage {
@@ -113,7 +113,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      *
      * @param string $prefix Prefix for storage keys (e.g., 'microchaos_baseline', 'microchaos_resource_baseline')
      */
-    public function __construct($prefix = 'microchaos_baseline') {
+    public function __construct(string $prefix = 'microchaos_baseline') {
         $this->prefix = rtrim($prefix, '_') . '_';
         $this->storage_dir = WP_CONTENT_DIR . '/microchaos/baselines';
     }
@@ -126,7 +126,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param int|null $ttl Time-to-live in seconds (null for default)
      * @return bool Success status
      */
-    public function save($key, $data, $ttl = null) {
+    public function save(string $key, $data, ?int $ttl = null): bool {
         $ttl = $ttl ?? $this->default_ttl;
         $sanitized_key = $this->sanitize_key($key);
 
@@ -150,7 +150,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Storage key
      * @return mixed|null Stored data or null if not found
      */
-    public function get($key) {
+    public function get(string $key) {
         $sanitized_key = $this->sanitize_key($key);
 
         // Try transients first
@@ -173,7 +173,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Storage key
      * @return bool True if exists, false otherwise
      */
-    public function exists($key) {
+    public function exists(string $key): bool {
         $sanitized_key = $this->sanitize_key($key);
 
         // Check transient
@@ -195,7 +195,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Storage key
      * @return bool Success status
      */
-    public function delete($key) {
+    public function delete(string $key): bool {
         $sanitized_key = $this->sanitize_key($key);
         $success = true;
 
@@ -220,7 +220,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Raw key
      * @return string Sanitized key
      */
-    private function sanitize_key($key) {
+    private function sanitize_key(string $key): string {
         if (function_exists('sanitize_key')) {
             return sanitize_key($key);
         }
@@ -235,7 +235,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $sanitized_key Already sanitized key
      * @return string Full file path
      */
-    private function get_file_path($sanitized_key) {
+    private function get_file_path(string $sanitized_key): string {
         $filename = sanitize_file_name($this->prefix . $sanitized_key . '.json');
         return $this->storage_dir . '/' . $filename;
     }
@@ -247,7 +247,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param mixed $data Data to store
      * @return bool Success status
      */
-    private function save_to_file($sanitized_key, $data) {
+    private function save_to_file(string $sanitized_key, $data): bool {
         // Create directory if needed
         if (!file_exists($this->storage_dir)) {
             if (!mkdir($this->storage_dir, 0755, true)) {
@@ -271,7 +271,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $sanitized_key Already sanitized key
      * @return mixed|null Stored data or null if not found
      */
-    private function load_from_file($sanitized_key) {
+    private function load_from_file(string $sanitized_key) {
         $filepath = $this->get_file_path($sanitized_key);
 
         if (!file_exists($filepath)) {
@@ -329,7 +329,7 @@ class MicroChaos_Thresholds {
      * @param string|null $profile Optional profile name for custom thresholds
      * @return string Formatted value with color codes
      */
-    public static function format_value($value, $type, $profile = null) {
+    public static function format_value(float $value, string $type, ?string $profile = null): string {
         switch ($type) {
             case 'response_time':
                 $thresholds = self::get_thresholds('response_time', $profile);
@@ -378,7 +378,7 @@ class MicroChaos_Thresholds {
      *
      * @return float Memory limit in MB
      */
-    public static function get_php_memory_limit_mb() {
+    public static function get_php_memory_limit_mb(): float {
         $memory_limit = ini_get('memory_limit');
         $value = (int) $memory_limit;
         
@@ -403,7 +403,7 @@ class MicroChaos_Thresholds {
      * @param int $width Chart width in characters
      * @return string ASCII chart
      */
-    public static function generate_chart($values, $title, $width = 40) {
+    public static function generate_chart(array $values, string $title, int $width = 40): string {
         $max = max($values);
         if ($max == 0) $max = 1; // Avoid division by zero
         
@@ -425,7 +425,7 @@ class MicroChaos_Thresholds {
      * @param string|null $profile Optional profile name for custom thresholds
      * @return array Thresholds array with 'good', 'warn', and 'critical' keys
      */
-    public static function get_thresholds($type, $profile = null) {
+    public static function get_thresholds(string $type, ?string $profile = null): array {
         // If we have custom thresholds for this profile and type, use them
         if ($profile && isset(self::$custom_thresholds[$profile][$type])) {
             return self::$custom_thresholds[$profile][$type];
@@ -468,7 +468,7 @@ class MicroChaos_Thresholds {
      * @param bool $persist Whether to persist thresholds to database
      * @return array Calculated thresholds
      */
-    public static function calibrate_thresholds($test_results, $profile = 'default', $persist = true) {
+    public static function calibrate_thresholds(array $test_results, string $profile = 'default', bool $persist = true): array {
         $thresholds = [];
         
         // Calculate response time thresholds if we have timing data
@@ -524,7 +524,7 @@ class MicroChaos_Thresholds {
      * @param array $thresholds Thresholds to save
      * @return bool Success status
      */
-    public static function save_thresholds($profile, $thresholds) {
+    public static function save_thresholds(string $profile, array $thresholds): bool {
         if (function_exists('set_transient')) {
             return set_transient(self::TRANSIENT_PREFIX . $profile, $thresholds, self::TRANSIENT_EXPIRY);
         }
@@ -537,7 +537,7 @@ class MicroChaos_Thresholds {
      * @param string $profile Profile name
      * @return array|bool Thresholds array or false if not found
      */
-    public static function load_thresholds($profile) {
+    public static function load_thresholds(string $profile) {
         if (function_exists('get_transient')) {
             $thresholds = get_transient(self::TRANSIENT_PREFIX . $profile);
             if ($thresholds) {
@@ -555,7 +555,7 @@ class MicroChaos_Thresholds {
      * @param int $buckets Number of buckets for distribution
      * @return string ASCII histogram
      */
-    public static function generate_histogram($times, $buckets = 5) {
+    public static function generate_histogram(array $times, int $buckets = 5): string {
         if (empty($times)) {
             return "";
         }
@@ -3591,7 +3591,7 @@ class MicroChaos_Resource_Monitor {
      * @param array $options Options for resource monitoring
      * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
      */
-    public function __construct($options = [], $storage = null) {
+    public function __construct(array $options = [], ?MicroChaos_Baseline_Storage $storage = null) {
         $this->resource_results = [];
         $this->track_trends = isset($options['track_trends']) ? (bool)$options['track_trends'] : false;
         $this->start_time = microtime(true);
@@ -3603,7 +3603,7 @@ class MicroChaos_Resource_Monitor {
      *
      * @return array Current resource usage data
      */
-    public function log_resource_utilization() {
+    public function log_resource_utilization(): array {
         $memory_usage = round(memory_get_usage() / 1024 / 1024, 2);
         $peak_memory = round(memory_get_peak_usage() / 1024 / 1024, 2);
         $ru = getrusage();
@@ -3636,7 +3636,7 @@ class MicroChaos_Resource_Monitor {
      *
      * @return array Resource utilization data
      */
-    public function get_resource_results() {
+    public function get_resource_results(): array {
         return $this->resource_results;
     }
 
@@ -3645,7 +3645,7 @@ class MicroChaos_Resource_Monitor {
      *
      * @return array Summary metrics
      */
-    public function generate_summary() {
+    public function generate_summary(): array {
         if (empty($this->resource_results)) {
             return [];
         }
@@ -3712,7 +3712,7 @@ class MicroChaos_Resource_Monitor {
      * @param array|null $provided_summary Optional pre-generated summary
      * @param string|null $threshold_profile Optional threshold profile to use for formatting
      */
-    public function report_summary($baseline = null, $provided_summary = null, $threshold_profile = null) {
+    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null): void {
         $summary = $provided_summary ?: $this->generate_summary();
 
         if (empty($summary)) {
@@ -3778,7 +3778,7 @@ class MicroChaos_Resource_Monitor {
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
-    public function save_baseline($name = 'default') {
+    public function save_baseline(string $name = 'default'): array {
         $baseline = $this->generate_summary();
         $this->baseline_storage->save($name, $baseline);
         return $baseline;
@@ -3790,16 +3790,16 @@ class MicroChaos_Resource_Monitor {
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
-    public function get_baseline($name = 'default') {
+    public function get_baseline(string $name = 'default') {
         return $this->baseline_storage->get($name);
     }
     
     /**
      * Analyze resource usage trends
-     * 
-     * @return array Trend analysis data
+     *
+     * @return array|null Trend analysis data
      */
-    public function analyze_trends() {
+    public function analyze_trends(): ?array {
         if (!$this->track_trends || count($this->resource_results) < 3) {
             return null;
         }
@@ -3941,7 +3941,7 @@ class MicroChaos_Resource_Monitor {
      * @param int $height Chart height
      * @return string ASCII charts
      */
-    public function generate_trend_charts($width = 60, $height = 15) {
+    public function generate_trend_charts(int $width = 60, int $height = 15): string {
         if (!$this->track_trends || count($this->resource_results) < 5) {
             return "Insufficient data for trend visualization (need at least 5 data points).";
         }
@@ -4065,7 +4065,7 @@ class MicroChaos_Resource_Monitor {
     /**
      * Report trend analysis to CLI
      */
-    public function report_trends() {
+    public function report_trends(): void {
         if (!$this->track_trends || count($this->resource_results) < 3) {
             if (class_exists('WP_CLI')) {
                 \WP_CLI::log("📈 Resource Trend Analysis: Insufficient data for trend analysis.");
@@ -4280,7 +4280,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
      */
-    public function __construct($storage = null) {
+    public function __construct(?MicroChaos_Baseline_Storage $storage = null) {
         $this->results = [];
         $this->baseline_storage = $storage ?? new MicroChaos_Transient_Baseline_Storage('microchaos_baseline');
     }
@@ -4288,7 +4288,7 @@ class MicroChaos_Reporting_Engine {
     /**
      * Reset results array (useful for progressive testing)
      */
-    public function reset_results() {
+    public function reset_results(): void {
         $this->results = [];
     }
 
@@ -4297,7 +4297,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @param array $result Result data
      */
-    public function add_result($result) {
+    public function add_result(array $result): void {
         $this->results[] = $result;
     }
 
@@ -4306,7 +4306,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @param array $results Array of result data
      */
-    public function add_results($results) {
+    public function add_results(array $results): void {
         foreach ($results as $result) {
             $this->add_result($result);
         }
@@ -4317,7 +4317,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @return array All results
      */
-    public function get_results() {
+    public function get_results(): array {
         return $this->results;
     }
 
@@ -4326,7 +4326,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @return int Number of requests
      */
-    public function get_request_count() {
+    public function get_request_count(): int {
         return count($this->results);
     }
 
@@ -4335,7 +4335,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @return array Summary report data
      */
-    public function generate_summary() {
+    public function generate_summary(): array {
         $count = count($this->results);
         if ($count === 0) {
             return [
@@ -4386,7 +4386,7 @@ class MicroChaos_Reporting_Engine {
      * @param array|null $provided_summary Optional pre-generated summary (useful for progressive tests)
      * @param string|null $threshold_profile Optional threshold profile to use for formatting
      */
-    public function report_summary($baseline = null, $provided_summary = null, $threshold_profile = null) {
+    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null): void {
         $summary = $provided_summary ?: $this->generate_summary();
 
         if ($summary['count'] === 0) {
@@ -4451,7 +4451,7 @@ class MicroChaos_Reporting_Engine {
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
-    public function save_baseline($name = 'default') {
+    public function save_baseline(string $name = 'default'): array {
         $baseline = $this->generate_summary();
         $this->baseline_storage->save($name, $baseline);
         return $baseline;
@@ -4463,7 +4463,7 @@ class MicroChaos_Reporting_Engine {
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
-    public function get_baseline($name = 'default') {
+    public function get_baseline(string $name = 'default') {
         return $this->baseline_storage->get($name);
     }
 
@@ -4474,7 +4474,7 @@ class MicroChaos_Reporting_Engine {
      * @param string $path File path
      * @return bool Success status
      */
-    public function export_results($format, $path) {
+    public function export_results(string $format, string $path): bool {
         $path = sanitize_text_field($path);
         $filepath = trailingslashit(WP_CONTENT_DIR) . ltrim($path, '/');
 

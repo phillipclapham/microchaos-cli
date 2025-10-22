@@ -42,7 +42,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      *
      * @param string $prefix Prefix for storage keys (e.g., 'microchaos_baseline', 'microchaos_resource_baseline')
      */
-    public function __construct($prefix = 'microchaos_baseline') {
+    public function __construct(string $prefix = 'microchaos_baseline') {
         $this->prefix = rtrim($prefix, '_') . '_';
         $this->storage_dir = WP_CONTENT_DIR . '/microchaos/baselines';
     }
@@ -55,7 +55,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param int|null $ttl Time-to-live in seconds (null for default)
      * @return bool Success status
      */
-    public function save($key, $data, $ttl = null) {
+    public function save(string $key, $data, ?int $ttl = null): bool {
         $ttl = $ttl ?? $this->default_ttl;
         $sanitized_key = $this->sanitize_key($key);
 
@@ -79,7 +79,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Storage key
      * @return mixed|null Stored data or null if not found
      */
-    public function get($key) {
+    public function get(string $key) {
         $sanitized_key = $this->sanitize_key($key);
 
         // Try transients first
@@ -102,7 +102,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Storage key
      * @return bool True if exists, false otherwise
      */
-    public function exists($key) {
+    public function exists(string $key): bool {
         $sanitized_key = $this->sanitize_key($key);
 
         // Check transient
@@ -124,7 +124,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Storage key
      * @return bool Success status
      */
-    public function delete($key) {
+    public function delete(string $key): bool {
         $sanitized_key = $this->sanitize_key($key);
         $success = true;
 
@@ -149,7 +149,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $key Raw key
      * @return string Sanitized key
      */
-    private function sanitize_key($key) {
+    private function sanitize_key(string $key): string {
         if (function_exists('sanitize_key')) {
             return sanitize_key($key);
         }
@@ -164,7 +164,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $sanitized_key Already sanitized key
      * @return string Full file path
      */
-    private function get_file_path($sanitized_key) {
+    private function get_file_path(string $sanitized_key): string {
         $filename = sanitize_file_name($this->prefix . $sanitized_key . '.json');
         return $this->storage_dir . '/' . $filename;
     }
@@ -176,7 +176,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param mixed $data Data to store
      * @return bool Success status
      */
-    private function save_to_file($sanitized_key, $data) {
+    private function save_to_file(string $sanitized_key, $data): bool {
         // Create directory if needed
         if (!file_exists($this->storage_dir)) {
             if (!mkdir($this->storage_dir, 0755, true)) {
@@ -200,7 +200,7 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
      * @param string $sanitized_key Already sanitized key
      * @return mixed|null Stored data or null if not found
      */
-    private function load_from_file($sanitized_key) {
+    private function load_from_file(string $sanitized_key) {
         $filepath = $this->get_file_path($sanitized_key);
 
         if (!file_exists($filepath)) {

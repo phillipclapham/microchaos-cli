@@ -23,7 +23,7 @@ interface MicroChaos_Baseline_Storage {
      * @param int|null $ttl Time-to-live in seconds (null for default)
      * @return bool Success status
      */
-    public function save($key, $data, $ttl = null);
+    public function save(string $key, $data, ?int $ttl = null): bool;
 
     /**
      * Retrieve baseline data by key
@@ -31,7 +31,7 @@ interface MicroChaos_Baseline_Storage {
      * @param string $key Storage key
      * @return mixed|null Stored data or null if not found
      */
-    public function get($key);
+    public function get(string $key);
 
     /**
      * Check if a baseline exists
@@ -39,7 +39,7 @@ interface MicroChaos_Baseline_Storage {
      * @param string $key Storage key
      * @return bool True if exists, false otherwise
      */
-    public function exists($key);
+    public function exists(string $key): bool;
 
     /**
      * Delete a baseline
@@ -47,5 +47,5 @@ interface MicroChaos_Baseline_Storage {
      * @param string $key Storage key
      * @return bool Success status
      */
-    public function delete($key);
+    public function delete(string $key): bool;
 }

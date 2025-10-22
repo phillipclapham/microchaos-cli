@@ -54,7 +54,7 @@ class MicroChaos_Thresholds {
      * @param string|null $profile Optional profile name for custom thresholds
      * @return string Formatted value with color codes
      */
-    public static function format_value($value, $type, $profile = null) {
+    public static function format_value(float $value, string $type, ?string $profile = null): string {
         switch ($type) {
             case 'response_time':
                 $thresholds = self::get_thresholds('response_time', $profile);
@@ -103,7 +103,7 @@ class MicroChaos_Thresholds {
      *
      * @return float Memory limit in MB
      */
-    public static function get_php_memory_limit_mb() {
+    public static function get_php_memory_limit_mb(): float {
         $memory_limit = ini_get('memory_limit');
         $value = (int) $memory_limit;
         
@@ -128,7 +128,7 @@ class MicroChaos_Thresholds {
      * @param int $width Chart width in characters
      * @return string ASCII chart
      */
-    public static function generate_chart($values, $title, $width = 40) {
+    public static function generate_chart(array $values, string $title, int $width = 40): string {
         $max = max($values);
         if ($max == 0) $max = 1; // Avoid division by zero
         
@@ -150,7 +150,7 @@ class MicroChaos_Thresholds {
      * @param string|null $profile Optional profile name for custom thresholds
      * @return array Thresholds array with 'good', 'warn', and 'critical' keys
      */
-    public static function get_thresholds($type, $profile = null) {
+    public static function get_thresholds(string $type, ?string $profile = null): array {
         // If we have custom thresholds for this profile and type, use them
         if ($profile && isset(self::$custom_thresholds[$profile][$type])) {
             return self::$custom_thresholds[$profile][$type];
@@ -193,7 +193,7 @@ class MicroChaos_Thresholds {
      * @param bool $persist Whether to persist thresholds to database
      * @return array Calculated thresholds
      */
-    public static function calibrate_thresholds($test_results, $profile = 'default', $persist = true) {
+    public static function calibrate_thresholds(array $test_results, string $profile = 'default', bool $persist = true): array {
         $thresholds = [];
         
         // Calculate response time thresholds if we have timing data
@@ -249,7 +249,7 @@ class MicroChaos_Thresholds {
      * @param array $thresholds Thresholds to save
      * @return bool Success status
      */
-    public static function save_thresholds($profile, $thresholds) {
+    public static function save_thresholds(string $profile, array $thresholds): bool {
         if (function_exists('set_transient')) {
             return set_transient(self::TRANSIENT_PREFIX . $profile, $thresholds, self::TRANSIENT_EXPIRY);
         }
@@ -262,7 +262,7 @@ class MicroChaos_Thresholds {
      * @param string $profile Profile name
      * @return array|bool Thresholds array or false if not found
      */
-    public static function load_thresholds($profile) {
+    public static function load_thresholds(string $profile) {
         if (function_exists('get_transient')) {
             $thresholds = get_transient(self::TRANSIENT_PREFIX . $profile);
             if ($thresholds) {
@@ -280,7 +280,7 @@ class MicroChaos_Thresholds {
      * @param int $buckets Number of buckets for distribution
      * @return string ASCII histogram
      */
-    public static function generate_histogram($times, $buckets = 5) {
+    public static function generate_histogram(array $times, int $buckets = 5): string {
         if (empty($times)) {
             return "";
         }

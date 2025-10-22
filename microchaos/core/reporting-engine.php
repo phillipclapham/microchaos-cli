@@ -33,7 +33,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
      */
-    public function __construct($storage = null) {
+    public function __construct(?MicroChaos_Baseline_Storage $storage = null) {
         $this->results = [];
         $this->baseline_storage = $storage ?? new MicroChaos_Transient_Baseline_Storage('microchaos_baseline');
     }
@@ -41,7 +41,7 @@ class MicroChaos_Reporting_Engine {
     /**
      * Reset results array (useful for progressive testing)
      */
-    public function reset_results() {
+    public function reset_results(): void {
         $this->results = [];
     }
 
@@ -50,7 +50,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @param array $result Result data
      */
-    public function add_result($result) {
+    public function add_result(array $result): void {
         $this->results[] = $result;
     }
 
@@ -59,7 +59,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @param array $results Array of result data
      */
-    public function add_results($results) {
+    public function add_results(array $results): void {
         foreach ($results as $result) {
             $this->add_result($result);
         }
@@ -70,7 +70,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @return array All results
      */
-    public function get_results() {
+    public function get_results(): array {
         return $this->results;
     }
 
@@ -79,7 +79,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @return int Number of requests
      */
-    public function get_request_count() {
+    public function get_request_count(): int {
         return count($this->results);
     }
 
@@ -88,7 +88,7 @@ class MicroChaos_Reporting_Engine {
      *
      * @return array Summary report data
      */
-    public function generate_summary() {
+    public function generate_summary(): array {
         $count = count($this->results);
         if ($count === 0) {
             return [
@@ -139,7 +139,7 @@ class MicroChaos_Reporting_Engine {
      * @param array|null $provided_summary Optional pre-generated summary (useful for progressive tests)
      * @param string|null $threshold_profile Optional threshold profile to use for formatting
      */
-    public function report_summary($baseline = null, $provided_summary = null, $threshold_profile = null) {
+    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null): void {
         $summary = $provided_summary ?: $this->generate_summary();
 
         if ($summary['count'] === 0) {
@@ -204,7 +204,7 @@ class MicroChaos_Reporting_Engine {
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
-    public function save_baseline($name = 'default') {
+    public function save_baseline(string $name = 'default'): array {
         $baseline = $this->generate_summary();
         $this->baseline_storage->save($name, $baseline);
         return $baseline;
@@ -216,7 +216,7 @@ class MicroChaos_Reporting_Engine {
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
-    public function get_baseline($name = 'default') {
+    public function get_baseline(string $name = 'default') {
         return $this->baseline_storage->get($name);
     }
 
@@ -227,7 +227,7 @@ class MicroChaos_Reporting_Engine {
      * @param string $path File path
      * @return bool Success status
      */
-    public function export_results($format, $path) {
+    public function export_results(string $format, string $path): bool {
         $path = sanitize_text_field($path);
         $filepath = trailingslashit(WP_CONTENT_DIR) . ltrim($path, '/');
 

@@ -48,7 +48,7 @@ class MicroChaos_Resource_Monitor {
      * @param array $options Options for resource monitoring
      * @param MicroChaos_Baseline_Storage|null $storage Optional baseline storage (will create default if not provided)
      */
-    public function __construct($options = [], $storage = null) {
+    public function __construct(array $options = [], ?MicroChaos_Baseline_Storage $storage = null) {
         $this->resource_results = [];
         $this->track_trends = isset($options['track_trends']) ? (bool)$options['track_trends'] : false;
         $this->start_time = microtime(true);
@@ -60,7 +60,7 @@ class MicroChaos_Resource_Monitor {
      *
      * @return array Current resource usage data
      */
-    public function log_resource_utilization() {
+    public function log_resource_utilization(): array {
         $memory_usage = round(memory_get_usage() / 1024 / 1024, 2);
         $peak_memory = round(memory_get_peak_usage() / 1024 / 1024, 2);
         $ru = getrusage();
@@ -93,7 +93,7 @@ class MicroChaos_Resource_Monitor {
      *
      * @return array Resource utilization data
      */
-    public function get_resource_results() {
+    public function get_resource_results(): array {
         return $this->resource_results;
     }
 
@@ -102,7 +102,7 @@ class MicroChaos_Resource_Monitor {
      *
      * @return array Summary metrics
      */
-    public function generate_summary() {
+    public function generate_summary(): array {
         if (empty($this->resource_results)) {
             return [];
         }
@@ -169,7 +169,7 @@ class MicroChaos_Resource_Monitor {
      * @param array|null $provided_summary Optional pre-generated summary
      * @param string|null $threshold_profile Optional threshold profile to use for formatting
      */
-    public function report_summary($baseline = null, $provided_summary = null, $threshold_profile = null) {
+    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null): void {
         $summary = $provided_summary ?: $this->generate_summary();
 
         if (empty($summary)) {
@@ -235,7 +235,7 @@ class MicroChaos_Resource_Monitor {
      * @param string $name Optional name for the baseline
      * @return array Baseline data
      */
-    public function save_baseline($name = 'default') {
+    public function save_baseline(string $name = 'default'): array {
         $baseline = $this->generate_summary();
         $this->baseline_storage->save($name, $baseline);
         return $baseline;
@@ -247,16 +247,16 @@ class MicroChaos_Resource_Monitor {
      * @param string $name Baseline name
      * @return array|null Baseline data or null if not found
      */
-    public function get_baseline($name = 'default') {
+    public function get_baseline(string $name = 'default') {
         return $this->baseline_storage->get($name);
     }
     
     /**
      * Analyze resource usage trends
-     * 
-     * @return array Trend analysis data
+     *
+     * @return array|null Trend analysis data
      */
-    public function analyze_trends() {
+    public function analyze_trends(): ?array {
         if (!$this->track_trends || count($this->resource_results) < 3) {
             return null;
         }
@@ -398,7 +398,7 @@ class MicroChaos_Resource_Monitor {
      * @param int $height Chart height
      * @return string ASCII charts
      */
-    public function generate_trend_charts($width = 60, $height = 15) {
+    public function generate_trend_charts(int $width = 60, int $height = 15): string {
         if (!$this->track_trends || count($this->resource_results) < 5) {
             return "Insufficient data for trend visualization (need at least 5 data points).";
         }
@@ -522,7 +522,7 @@ class MicroChaos_Resource_Monitor {
     /**
      * Report trend analysis to CLI
      */
-    public function report_trends() {
+    public function report_trends(): void {
         if (!$this->track_trends || count($this->resource_results) < 3) {
             if (class_exists('WP_CLI')) {
                 \WP_CLI::log("📈 Resource Trend Analysis: Insufficient data for trend analysis.");
