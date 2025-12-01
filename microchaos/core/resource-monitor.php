@@ -17,23 +17,23 @@ class MicroChaos_Resource_Monitor {
     /**
      * Resource results storage
      *
-     * @var array
+     * @var array<int, array<string, mixed>>
      */
-    private $resource_results = [];
+    private array $resource_results = [];
 
     /**
      * Whether to track resource trends over time
      *
      * @var bool
      */
-    private $track_trends = false;
+    private bool $track_trends = false;
 
     /**
      * Timestamp of monitoring start
      *
      * @var float
      */
-    private $start_time = 0;
+    private float $start_time = 0;
 
     /**
      * Baseline storage implementation
@@ -245,9 +245,9 @@ class MicroChaos_Resource_Monitor {
      * Get saved baseline data
      *
      * @param string $name Baseline name
-     * @return array|null Baseline data or null if not found
+     * @return array<string, mixed>|null Baseline data or null if not found
      */
-    public function get_baseline(string $name = 'default') {
+    public function get_baseline(string $name = 'default'): ?array {
         return $this->baseline_storage->get($name);
     }
     
@@ -310,12 +310,12 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Calculate the slope of a trend line (simple linear regression)
-     * 
-     * @param array $x X values (time)
-     * @param array $y Y values (resource metric)
+     *
+     * @param array<int, float> $x X values (time)
+     * @param array<int, float> $y Y values (resource metric)
      * @return float Slope of trend line
      */
-    private function calculate_trend_slope($x, $y) {
+    private function calculate_trend_slope(array $x, array $y): float {
         $n = count($x);
         if ($n < 2) return 0;
         
@@ -339,12 +339,12 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Determine the growth pattern of a resource metric
-     * 
-     * @param array $results Sorted resource results
+     *
+     * @param array<int, array<string, mixed>> $results Sorted resource results
      * @param string $metric Metric to analyze (memory_usage, peak_memory)
      * @return string Growth pattern description
      */
-    private function determine_growth_pattern($results, $metric) {
+    private function determine_growth_pattern(array $results, string $metric): string {
         $n = count($results);
         if ($n < 5) return 'insufficient_data';
         
@@ -437,15 +437,15 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Create ASCII chart for a metric
-     * 
-     * @param array $x X values (time)
-     * @param array $y Y values (resource metric)
+     *
+     * @param array<int, float> $x X values (time)
+     * @param array<int, float> $y Y values (resource metric)
      * @param string $title Chart title
      * @param int $width Chart width
      * @param int $height Chart height
      * @return string ASCII chart
      */
-    private function create_ascii_chart($x, $y, $title, $width, $height) {
+    private function create_ascii_chart(array $x, array $y, string $title, int $width, int $height): string {
         $n = count($x);
         if ($n < 2) return "";
         

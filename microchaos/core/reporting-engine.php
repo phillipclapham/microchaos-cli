@@ -17,9 +17,9 @@ class MicroChaos_Reporting_Engine {
     /**
      * Request results storage
      *
-     * @var array
+     * @var array<int, array{time: float, code: int|string}>
      */
-    private $results = [];
+    private array $results = [];
 
     /**
      * Baseline storage implementation
@@ -239,9 +239,9 @@ class MicroChaos_Reporting_Engine {
      * Get saved baseline data
      *
      * @param string $name Baseline name
-     * @return array|null Baseline data or null if not found
+     * @return array<string, mixed>|null Baseline data or null if not found
      */
-    public function get_baseline(string $name = 'default') {
+    public function get_baseline(string $name = 'default'): ?array {
         return $this->baseline_storage->get($name);
     }
 

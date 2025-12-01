@@ -18,7 +18,7 @@ class MicroChaos_Commands {
     /**
      * Register WP-CLI commands
      */
-    public static function register() {
+    public static function register(): void {
         if (defined('WP_CLI') && WP_CLI) {
             \WP_CLI::add_command('microchaos', 'MicroChaos_Commands');
         }
@@ -197,10 +197,10 @@ class MicroChaos_Commands {
      *     # Save thresholds with a custom profile name
      *     wp microchaos loadtest --endpoint=home --count=50 --auto-thresholds --auto-thresholds-profile=homepage
      *
-     * @param array $args Command arguments
-     * @param array $assoc_args Command options
+     * @param array<int, string> $args Command arguments
+     * @param array<string, mixed> $assoc_args Command options
      */
-    public function loadtest($args, $assoc_args) {
+    public function loadtest(array $args, array $assoc_args): void {
         // Build config from CLI options
         $config = $this->parse_options($assoc_args);
 

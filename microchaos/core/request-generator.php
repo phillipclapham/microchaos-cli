@@ -19,28 +19,28 @@ class MicroChaos_Request_Generator {
      *
      * @var bool
      */
-    private $collect_cache_headers = false;
+    private bool $collect_cache_headers = false;
 
     /**
      * Cache headers data storage
      *
-     * @var array
+     * @var array<string, array<string, int>>
      */
-    private $cache_headers = [];
+    private array $cache_headers = [];
 
     /**
      * Last request cache headers
      *
-     * @var array
+     * @var array<string, string>
      */
-    private $last_request_cache_headers = [];
+    private array $last_request_cache_headers = [];
 
     /**
      * Constructor
      *
-     * @param array $options Options for the request generator
+     * @param array<string, mixed> $options Options for the request generator
      */
-    public function __construct($options = []) {
+    public function __construct(array $options = []) {
         $this->collect_cache_headers = isset($options['collect_cache_headers']) ?
             $options['collect_cache_headers'] : false;
     }
@@ -48,16 +48,16 @@ class MicroChaos_Request_Generator {
     /**
      * Custom headers storage
      *
-     * @var array
+     * @var array<string, string>
      */
-    private $custom_headers = [];
+    private array $custom_headers = [];
 
     /**
      * Set custom headers
      *
-     * @param array $headers Custom headers in key-value format
+     * @param array<string, string> $headers Custom headers in key-value format
      */
-    public function set_custom_headers($headers) {
+    public function set_custom_headers(array $headers): void {
         $this->custom_headers = $headers;
     }
 
@@ -70,9 +70,9 @@ class MicroChaos_Request_Generator {
      * @param int $current_burst Number of concurrent requests to fire
      * @param string $method HTTP method
      * @param string|null $body Request body for POST/PUT
-     * @return array Results of the requests
+     * @return array<int, array{time: float, code: int|string}> Results of the requests
      */
-    public function fire_requests_async($url, $log_path, $cookies, $current_burst, $method = 'GET', $body = null) {
+    public function fire_requests_async(string $url, ?string $log_path, ?array $cookies, int $current_burst, string $method = 'GET', ?string $body = null): array {
         $results = [];
         $multi_handle = curl_multi_init();
         $curl_handles = [];
@@ -184,9 +184,9 @@ class MicroChaos_Request_Generator {
      * @param array|null $cookies Optional cookies for authentication
      * @param string $method HTTP method
      * @param string|null $body Request body for POST/PUT
-     * @return array Result of the request
+     * @return array{time: float, code: int|string} Result of the request
      */
-    public function fire_request($url, $log_path = null, $cookies = null, $method = 'GET', $body = null) {
+    public function fire_request(string $url, ?string $log_path = null, ?array $cookies = null, string $method = 'GET', ?string $body = null): array {
         $start = microtime(true);
 
         $args = [
@@ -264,9 +264,9 @@ class MicroChaos_Request_Generator {
      * Resolve endpoint slug to a URL
      *
      * @param string $slug Endpoint slug or custom path
-     * @return string|bool URL or false if invalid
+     * @return string|false URL or false if invalid
      */
-    public function resolve_endpoint($slug) {
+    public function resolve_endpoint(string $slug): string|false {
         if (strpos($slug, 'custom:') === 0) {
             return home_url(substr($slug, 7));
         }
@@ -284,7 +284,7 @@ class MicroChaos_Request_Generator {
      *
      * @param string $header_text Raw header text from cURL response
      */
-    private function process_curl_headers($header_text) {
+    private function process_curl_headers(string $header_text): void {
         $headers = [];
         foreach(explode("\r\n", $header_text) as $line) {
             if (strpos($line, ':') !== false) {
@@ -301,9 +301,9 @@ class MicroChaos_Request_Generator {
     /**
      * Collect and catalog cache headers from the response
      *
-     * @param array $headers Response headers
+     * @param array<string, string>|\WpOrg\Requests\Utility\CaseInsensitiveDictionary $headers Response headers
      */
-    public function collect_cache_header_data($headers) {
+    public function collect_cache_header_data(array|\WpOrg\Requests\Utility\CaseInsensitiveDictionary $headers): void {
         // Headers to track (Pressable specific and general cache headers)
         $cache_headers = ['x-ac', 'x-nananana', 'x-cache', 'age', 'x-cache-hits'];
 
@@ -332,9 +332,9 @@ class MicroChaos_Request_Generator {
     /**
      * Get cache headers data
      *
-     * @return array Collection of cache headers
+     * @return array<string, array<string, int>> Collection of cache headers
      */
-    public function get_cache_headers() {
+    public function get_cache_headers(): array {
         return $this->cache_headers;
     }
 
@@ -343,26 +343,26 @@ class MicroChaos_Request_Generator {
      *
      * Clears the accumulated cache headers data
      */
-    public function reset_cache_headers() {
+    public function reset_cache_headers(): void {
         $this->cache_headers = [];
     }
 
     /**
      * Get cache headers for the last request
      *
-     * @return array Cache headers from the last request
+     * @return array<string, string> Cache headers from the last request
      */
-    public function get_last_request_cache_headers() {
+    public function get_last_request_cache_headers(): array {
         return $this->last_request_cache_headers;
     }
 
     /**
      * Format cache headers for display
      *
-     * @param array $headers Cache headers to format
+     * @param array<string, string> $headers Cache headers to format
      * @return string Formatted cache headers string
      */
-    private function format_cache_headers_for_display($headers) {
+    private function format_cache_headers_for_display(array $headers): string {
         $display_parts = [];
         
         // Focus on Pressable-specific headers
@@ -390,7 +390,7 @@ class MicroChaos_Request_Generator {
      * @param string $message Message to log
      * @param string $path Path relative to WP_CONTENT_DIR
      */
-    private function log_to_file($message, $path) {
+    private function log_to_file(string $message, string $path): void {
         $path = sanitize_text_field($path);
         $filepath = trailingslashit(WP_CONTENT_DIR) . ltrim($path, '/');
         @file_put_contents($filepath, $message . PHP_EOL, FILE_APPEND);
@@ -401,7 +401,7 @@ class MicroChaos_Request_Generator {
      *
      * @return string Random user agent
      */
-    private function get_random_user_agent() {
+    private function get_random_user_agent(): string {
         $agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',
@@ -415,10 +415,10 @@ class MicroChaos_Request_Generator {
     /**
      * Check if a string is valid JSON
      *
-     * @param string $string String to check
+     * @param mixed $string String to check
      * @return bool Whether string is valid JSON
      */
-    private function is_json($string) {
+    private function is_json(mixed $string): bool {
         if (!is_string($string)) {
             return false;
         }

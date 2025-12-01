@@ -17,9 +17,9 @@ class MicroChaos_Cache_Analyzer {
     /**
      * Cache headers storage
      *
-     * @var array
+     * @var array<string, array<string, int>>
      */
-    private $cache_headers = [];
+    private array $cache_headers = [];
 
     /**
      * Constructor
@@ -31,9 +31,9 @@ class MicroChaos_Cache_Analyzer {
     /**
      * Process cache headers from response
      *
-     * @param array $headers Response headers
+     * @param array<string, string> $headers Response headers
      */
-    public function collect_headers($headers) {
+    public function collect_headers(array $headers): void {
         // Headers to track (Pressable specific and general cache headers)
         $cache_header_names = ['x-ac', 'x-nananana', 'x-cache', 'age', 'x-cache-hits'];
 
@@ -54,9 +54,9 @@ class MicroChaos_Cache_Analyzer {
     /**
      * Get collected cache headers
      *
-     * @return array Cache headers data
+     * @return array<string, array<string, int>> Cache headers data
      */
-    public function get_cache_headers() {
+    public function get_cache_headers(): array {
         return $this->cache_headers;
     }
 
@@ -64,9 +64,9 @@ class MicroChaos_Cache_Analyzer {
      * Generate cache header report
      *
      * @param int $total_requests Total number of requests
-     * @return array Report data
+     * @return array<string, mixed> Report data
      */
-    public function generate_report($total_requests) {
+    public function generate_report(int $total_requests): array {
         $report = [
             'headers' => $this->cache_headers,
             'summary' => [],
@@ -108,7 +108,7 @@ class MicroChaos_Cache_Analyzer {
      *
      * @param int $total_requests Total number of requests made
      */
-    public function report_summary($total_requests) {
+    public function report_summary(int $total_requests): void {
         if (empty($this->cache_headers)) {
             if (class_exists('WP_CLI')) {
                 MicroChaos_Log::log("ℹ️ No cache headers detected.");

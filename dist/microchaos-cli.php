@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-12-01T18:45:47.010Z
+ * Generated on: 2025-12-01T19:17:46.746Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -960,73 +960,73 @@ class MicroChaos_Integration_Logger {
     
     /**
      * Enabled status
-     * 
+     *
      * @var bool
      */
-    private $enabled = false;
-    
+    private bool $enabled = false;
+
     /**
      * Test ID
-     * 
+     *
      * @var string
      */
-    public $test_id = '';
+    public string $test_id = '';
     
     /**
      * Constructor
-     * 
-     * @param array $options Logger options
+     *
+     * @param array<string, mixed> $options Logger options
      */
-    public function __construct($options = []) {
+    public function __construct(array $options = []) {
         $this->enabled = isset($options['enabled']) ? (bool)$options['enabled'] : false;
         $this->test_id = isset($options['test_id']) ? $options['test_id'] : uniqid('mc_');
     }
     
     /**
      * Enable integration logging
-     * 
+     *
      * @param string|null $test_id Optional test ID to use
      */
-    public function enable($test_id = null) {
+    public function enable(?string $test_id = null): void {
         $this->enabled = true;
         if ($test_id) {
             $this->test_id = $test_id;
         }
     }
-    
+
     /**
      * Disable integration logging
      */
-    public function disable() {
+    public function disable(): void {
         $this->enabled = false;
     }
-    
+
     /**
      * Check if integration logging is enabled
-     * 
+     *
      * @return bool Enabled status
      */
-    public function is_enabled() {
+    public function is_enabled(): bool {
         return $this->enabled;
     }
     
     /**
      * Log test start event
-     * 
-     * @param array $config Test configuration
+     *
+     * @param array<string, mixed> $config Test configuration
      */
-    public function log_test_start($config) {
+    public function log_test_start(array $config): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'test_start',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'config' => $config
         ];
-        
+
         $this->log_event($data);
     }
     
@@ -1062,56 +1062,56 @@ class MicroChaos_Integration_Logger {
     
     /**
      * Log a single request result
-     * 
-     * @param array $result Request result
+     *
+     * @param array<string, mixed> $result Request result
      */
-    public function log_request($result) {
+    public function log_request(array $result): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'request',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'result' => $result
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log resource utilization snapshot
-     * 
-     * @param array $resource_data Resource utilization data
+     *
+     * @param array<string, mixed> $resource_data Resource utilization data
      */
-    public function log_resource_snapshot($resource_data) {
+    public function log_resource_snapshot(array $resource_data): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'resource_snapshot',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'resource_data' => $resource_data
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log burst completion
-     * 
+     *
      * @param int $burst_number Burst number
      * @param int $requests_count Number of requests in burst
-     * @param array $burst_summary Summary data for this burst
+     * @param array<string, mixed> $burst_summary Summary data for this burst
      */
-    public function log_burst_complete($burst_number, $requests_count, $burst_summary) {
+    public function log_burst_complete(int $burst_number, int $requests_count, array $burst_summary): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'burst_complete',
             'test_id' => $this->test_id,
@@ -1120,21 +1120,21 @@ class MicroChaos_Integration_Logger {
             'requests_count' => $requests_count,
             'burst_summary' => $burst_summary
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log progressive test level completion
-     * 
+     *
      * @param int $concurrency Concurrency level
-     * @param array $level_summary Summary for this concurrency level
+     * @param array<string, mixed> $level_summary Summary for this concurrency level
      */
-    public function log_progressive_level($concurrency, $level_summary) {
+    public function log_progressive_level(int $concurrency, array $level_summary): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'progressive_level',
             'test_id' => $this->test_id,
@@ -1142,22 +1142,22 @@ class MicroChaos_Integration_Logger {
             'concurrency' => $concurrency,
             'summary' => $level_summary
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log custom metrics
-     * 
+     *
      * @param string $metric_name Metric name
      * @param mixed $value Metric value
-     * @param array $tags Additional tags
+     * @param array<string, mixed> $tags Additional tags
      */
-    public function log_metric($metric_name, $value, $tags = []) {
+    public function log_metric(string $metric_name, mixed $value, array $tags = []): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'metric',
             'test_id' => $this->test_id,
@@ -1166,16 +1166,16 @@ class MicroChaos_Integration_Logger {
             'value' => $value,
             'tags' => $tags
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log an event with JSON-encoded data
-     * 
-     * @param array $data Event data
+     *
+     * @param array<string, mixed> $data Event data
      */
-    private function log_event($data) {
+    private function log_event(array $data): void {
         // Add site URL to all events for multi-site monitoring
         $data['site_url'] = home_url();
         
@@ -1193,28 +1193,28 @@ class MicroChaos_Request_Generator {
      *
      * @var bool
      */
-    private $collect_cache_headers = false;
+    private bool $collect_cache_headers = false;
 
     /**
      * Cache headers data storage
      *
-     * @var array
+     * @var array<string, array<string, int>>
      */
-    private $cache_headers = [];
+    private array $cache_headers = [];
 
     /**
      * Last request cache headers
      *
-     * @var array
+     * @var array<string, string>
      */
-    private $last_request_cache_headers = [];
+    private array $last_request_cache_headers = [];
 
     /**
      * Constructor
      *
-     * @param array $options Options for the request generator
+     * @param array<string, mixed> $options Options for the request generator
      */
-    public function __construct($options = []) {
+    public function __construct(array $options = []) {
         $this->collect_cache_headers = isset($options['collect_cache_headers']) ?
             $options['collect_cache_headers'] : false;
     }
@@ -1222,16 +1222,16 @@ class MicroChaos_Request_Generator {
     /**
      * Custom headers storage
      *
-     * @var array
+     * @var array<string, string>
      */
-    private $custom_headers = [];
+    private array $custom_headers = [];
 
     /**
      * Set custom headers
      *
-     * @param array $headers Custom headers in key-value format
+     * @param array<string, string> $headers Custom headers in key-value format
      */
-    public function set_custom_headers($headers) {
+    public function set_custom_headers(array $headers): void {
         $this->custom_headers = $headers;
     }
 
@@ -1244,9 +1244,9 @@ class MicroChaos_Request_Generator {
      * @param int $current_burst Number of concurrent requests to fire
      * @param string $method HTTP method
      * @param string|null $body Request body for POST/PUT
-     * @return array Results of the requests
+     * @return array<int, array{time: float, code: int|string}> Results of the requests
      */
-    public function fire_requests_async($url, $log_path, $cookies, $current_burst, $method = 'GET', $body = null) {
+    public function fire_requests_async(string $url, ?string $log_path, ?array $cookies, int $current_burst, string $method = 'GET', ?string $body = null): array {
         $results = [];
         $multi_handle = curl_multi_init();
         $curl_handles = [];
@@ -1358,9 +1358,9 @@ class MicroChaos_Request_Generator {
      * @param array|null $cookies Optional cookies for authentication
      * @param string $method HTTP method
      * @param string|null $body Request body for POST/PUT
-     * @return array Result of the request
+     * @return array{time: float, code: int|string} Result of the request
      */
-    public function fire_request($url, $log_path = null, $cookies = null, $method = 'GET', $body = null) {
+    public function fire_request(string $url, ?string $log_path = null, ?array $cookies = null, string $method = 'GET', ?string $body = null): array {
         $start = microtime(true);
 
         $args = [
@@ -1438,9 +1438,9 @@ class MicroChaos_Request_Generator {
      * Resolve endpoint slug to a URL
      *
      * @param string $slug Endpoint slug or custom path
-     * @return string|bool URL or false if invalid
+     * @return string|false URL or false if invalid
      */
-    public function resolve_endpoint($slug) {
+    public function resolve_endpoint(string $slug): string|false {
         if (strpos($slug, 'custom:') === 0) {
             return home_url(substr($slug, 7));
         }
@@ -1458,7 +1458,7 @@ class MicroChaos_Request_Generator {
      *
      * @param string $header_text Raw header text from cURL response
      */
-    private function process_curl_headers($header_text) {
+    private function process_curl_headers(string $header_text): void {
         $headers = [];
         foreach(explode("\r\n", $header_text) as $line) {
             if (strpos($line, ':') !== false) {
@@ -1475,9 +1475,9 @@ class MicroChaos_Request_Generator {
     /**
      * Collect and catalog cache headers from the response
      *
-     * @param array $headers Response headers
+     * @param array<string, string>|\WpOrg\Requests\Utility\CaseInsensitiveDictionary $headers Response headers
      */
-    public function collect_cache_header_data($headers) {
+    public function collect_cache_header_data(array|\WpOrg\Requests\Utility\CaseInsensitiveDictionary $headers): void {
         // Headers to track (Pressable specific and general cache headers)
         $cache_headers = ['x-ac', 'x-nananana', 'x-cache', 'age', 'x-cache-hits'];
 
@@ -1506,9 +1506,9 @@ class MicroChaos_Request_Generator {
     /**
      * Get cache headers data
      *
-     * @return array Collection of cache headers
+     * @return array<string, array<string, int>> Collection of cache headers
      */
-    public function get_cache_headers() {
+    public function get_cache_headers(): array {
         return $this->cache_headers;
     }
 
@@ -1517,26 +1517,26 @@ class MicroChaos_Request_Generator {
      *
      * Clears the accumulated cache headers data
      */
-    public function reset_cache_headers() {
+    public function reset_cache_headers(): void {
         $this->cache_headers = [];
     }
 
     /**
      * Get cache headers for the last request
      *
-     * @return array Cache headers from the last request
+     * @return array<string, string> Cache headers from the last request
      */
-    public function get_last_request_cache_headers() {
+    public function get_last_request_cache_headers(): array {
         return $this->last_request_cache_headers;
     }
 
     /**
      * Format cache headers for display
      *
-     * @param array $headers Cache headers to format
+     * @param array<string, string> $headers Cache headers to format
      * @return string Formatted cache headers string
      */
-    private function format_cache_headers_for_display($headers) {
+    private function format_cache_headers_for_display(array $headers): string {
         $display_parts = [];
         
         // Focus on Pressable-specific headers
@@ -1564,7 +1564,7 @@ class MicroChaos_Request_Generator {
      * @param string $message Message to log
      * @param string $path Path relative to WP_CONTENT_DIR
      */
-    private function log_to_file($message, $path) {
+    private function log_to_file(string $message, string $path): void {
         $path = sanitize_text_field($path);
         $filepath = trailingslashit(WP_CONTENT_DIR) . ltrim($path, '/');
         @file_put_contents($filepath, $message . PHP_EOL, FILE_APPEND);
@@ -1575,7 +1575,7 @@ class MicroChaos_Request_Generator {
      *
      * @return string Random user agent
      */
-    private function get_random_user_agent() {
+    private function get_random_user_agent(): string {
         $agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',
@@ -1589,10 +1589,10 @@ class MicroChaos_Request_Generator {
     /**
      * Check if a string is valid JSON
      *
-     * @param string $string String to check
+     * @param mixed $string String to check
      * @return bool Whether string is valid JSON
      */
-    private function is_json($string) {
+    private function is_json(mixed $string): bool {
         if (!is_string($string)) {
             return false;
         }
@@ -1606,23 +1606,23 @@ class MicroChaos_Resource_Monitor {
     /**
      * Resource results storage
      *
-     * @var array
+     * @var array<int, array<string, mixed>>
      */
-    private $resource_results = [];
+    private array $resource_results = [];
 
     /**
      * Whether to track resource trends over time
      *
      * @var bool
      */
-    private $track_trends = false;
+    private bool $track_trends = false;
 
     /**
      * Timestamp of monitoring start
      *
      * @var float
      */
-    private $start_time = 0;
+    private float $start_time = 0;
 
     /**
      * Baseline storage implementation
@@ -1834,9 +1834,9 @@ class MicroChaos_Resource_Monitor {
      * Get saved baseline data
      *
      * @param string $name Baseline name
-     * @return array|null Baseline data or null if not found
+     * @return array<string, mixed>|null Baseline data or null if not found
      */
-    public function get_baseline(string $name = 'default') {
+    public function get_baseline(string $name = 'default'): ?array {
         return $this->baseline_storage->get($name);
     }
     
@@ -1899,12 +1899,12 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Calculate the slope of a trend line (simple linear regression)
-     * 
-     * @param array $x X values (time)
-     * @param array $y Y values (resource metric)
+     *
+     * @param array<int, float> $x X values (time)
+     * @param array<int, float> $y Y values (resource metric)
      * @return float Slope of trend line
      */
-    private function calculate_trend_slope($x, $y) {
+    private function calculate_trend_slope(array $x, array $y): float {
         $n = count($x);
         if ($n < 2) return 0;
         
@@ -1928,12 +1928,12 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Determine the growth pattern of a resource metric
-     * 
-     * @param array $results Sorted resource results
+     *
+     * @param array<int, array<string, mixed>> $results Sorted resource results
      * @param string $metric Metric to analyze (memory_usage, peak_memory)
      * @return string Growth pattern description
      */
-    private function determine_growth_pattern($results, $metric) {
+    private function determine_growth_pattern(array $results, string $metric): string {
         $n = count($results);
         if ($n < 5) return 'insufficient_data';
         
@@ -2026,15 +2026,15 @@ class MicroChaos_Resource_Monitor {
     
     /**
      * Create ASCII chart for a metric
-     * 
-     * @param array $x X values (time)
-     * @param array $y Y values (resource metric)
+     *
+     * @param array<int, float> $x X values (time)
+     * @param array<int, float> $y Y values (resource metric)
      * @param string $title Chart title
      * @param int $width Chart width
      * @param int $height Chart height
      * @return string ASCII chart
      */
-    private function create_ascii_chart($x, $y, $title, $width, $height) {
+    private function create_ascii_chart(array $x, array $y, string $title, int $width, int $height): string {
         $n = count($x);
         if ($n < 2) return "";
         
@@ -2155,9 +2155,9 @@ class MicroChaos_Cache_Analyzer {
     /**
      * Cache headers storage
      *
-     * @var array
+     * @var array<string, array<string, int>>
      */
-    private $cache_headers = [];
+    private array $cache_headers = [];
 
     /**
      * Constructor
@@ -2169,9 +2169,9 @@ class MicroChaos_Cache_Analyzer {
     /**
      * Process cache headers from response
      *
-     * @param array $headers Response headers
+     * @param array<string, string> $headers Response headers
      */
-    public function collect_headers($headers) {
+    public function collect_headers(array $headers): void {
         // Headers to track (Pressable specific and general cache headers)
         $cache_header_names = ['x-ac', 'x-nananana', 'x-cache', 'age', 'x-cache-hits'];
 
@@ -2192,9 +2192,9 @@ class MicroChaos_Cache_Analyzer {
     /**
      * Get collected cache headers
      *
-     * @return array Cache headers data
+     * @return array<string, array<string, int>> Cache headers data
      */
-    public function get_cache_headers() {
+    public function get_cache_headers(): array {
         return $this->cache_headers;
     }
 
@@ -2202,9 +2202,9 @@ class MicroChaos_Cache_Analyzer {
      * Generate cache header report
      *
      * @param int $total_requests Total number of requests
-     * @return array Report data
+     * @return array<string, mixed> Report data
      */
-    public function generate_report($total_requests) {
+    public function generate_report(int $total_requests): array {
         $report = [
             'headers' => $this->cache_headers,
             'summary' => [],
@@ -2246,7 +2246,7 @@ class MicroChaos_Cache_Analyzer {
      *
      * @param int $total_requests Total number of requests made
      */
-    public function report_summary($total_requests) {
+    public function report_summary(int $total_requests): void {
         if (empty($this->cache_headers)) {
             if (class_exists('WP_CLI')) {
                 MicroChaos_Log::log("ℹ️ No cache headers detected.");
@@ -2310,9 +2310,9 @@ class MicroChaos_Reporting_Engine {
     /**
      * Request results storage
      *
-     * @var array
+     * @var array<int, array{time: float, code: int|string}>
      */
-    private $results = [];
+    private array $results = [];
 
     /**
      * Baseline storage implementation
@@ -2532,9 +2532,9 @@ class MicroChaos_Reporting_Engine {
      * Get saved baseline data
      *
      * @param string $name Baseline name
-     * @return array|null Baseline data or null if not found
+     * @return array<string, mixed>|null Baseline data or null if not found
      */
-    public function get_baseline(string $name = 'default') {
+    public function get_baseline(string $name = 'default'): ?array {
         return $this->baseline_storage->get($name);
     }
 
@@ -3246,7 +3246,7 @@ class MicroChaos_Commands {
     /**
      * Register WP-CLI commands
      */
-    public static function register() {
+    public static function register(): void {
         if (defined('WP_CLI') && WP_CLI) {
             \WP_CLI::add_command('microchaos', 'MicroChaos_Commands');
         }
@@ -3425,10 +3425,10 @@ class MicroChaos_Commands {
      *     # Save thresholds with a custom profile name
      *     wp microchaos loadtest --endpoint=home --count=50 --auto-thresholds --auto-thresholds-profile=homepage
      *
-     * @param array $args Command arguments
-     * @param array $assoc_args Command options
+     * @param array<int, string> $args Command arguments
+     * @param array<string, mixed> $assoc_args Command options
      */
-    public function loadtest($args, $assoc_args) {
+    public function loadtest(array $args, array $assoc_args): void {
         // Build config from CLI options
         $config = $this->parse_options($assoc_args);
 

@@ -24,73 +24,73 @@ class MicroChaos_Integration_Logger {
     
     /**
      * Enabled status
-     * 
+     *
      * @var bool
      */
-    private $enabled = false;
-    
+    private bool $enabled = false;
+
     /**
      * Test ID
-     * 
+     *
      * @var string
      */
-    public $test_id = '';
+    public string $test_id = '';
     
     /**
      * Constructor
-     * 
-     * @param array $options Logger options
+     *
+     * @param array<string, mixed> $options Logger options
      */
-    public function __construct($options = []) {
+    public function __construct(array $options = []) {
         $this->enabled = isset($options['enabled']) ? (bool)$options['enabled'] : false;
         $this->test_id = isset($options['test_id']) ? $options['test_id'] : uniqid('mc_');
     }
     
     /**
      * Enable integration logging
-     * 
+     *
      * @param string|null $test_id Optional test ID to use
      */
-    public function enable($test_id = null) {
+    public function enable(?string $test_id = null): void {
         $this->enabled = true;
         if ($test_id) {
             $this->test_id = $test_id;
         }
     }
-    
+
     /**
      * Disable integration logging
      */
-    public function disable() {
+    public function disable(): void {
         $this->enabled = false;
     }
-    
+
     /**
      * Check if integration logging is enabled
-     * 
+     *
      * @return bool Enabled status
      */
-    public function is_enabled() {
+    public function is_enabled(): bool {
         return $this->enabled;
     }
     
     /**
      * Log test start event
-     * 
-     * @param array $config Test configuration
+     *
+     * @param array<string, mixed> $config Test configuration
      */
-    public function log_test_start($config) {
+    public function log_test_start(array $config): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'test_start',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'config' => $config
         ];
-        
+
         $this->log_event($data);
     }
     
@@ -126,56 +126,56 @@ class MicroChaos_Integration_Logger {
     
     /**
      * Log a single request result
-     * 
-     * @param array $result Request result
+     *
+     * @param array<string, mixed> $result Request result
      */
-    public function log_request($result) {
+    public function log_request(array $result): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'request',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'result' => $result
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log resource utilization snapshot
-     * 
-     * @param array $resource_data Resource utilization data
+     *
+     * @param array<string, mixed> $resource_data Resource utilization data
      */
-    public function log_resource_snapshot($resource_data) {
+    public function log_resource_snapshot(array $resource_data): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'resource_snapshot',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'resource_data' => $resource_data
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log burst completion
-     * 
+     *
      * @param int $burst_number Burst number
      * @param int $requests_count Number of requests in burst
-     * @param array $burst_summary Summary data for this burst
+     * @param array<string, mixed> $burst_summary Summary data for this burst
      */
-    public function log_burst_complete($burst_number, $requests_count, $burst_summary) {
+    public function log_burst_complete(int $burst_number, int $requests_count, array $burst_summary): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'burst_complete',
             'test_id' => $this->test_id,
@@ -184,21 +184,21 @@ class MicroChaos_Integration_Logger {
             'requests_count' => $requests_count,
             'burst_summary' => $burst_summary
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log progressive test level completion
-     * 
+     *
      * @param int $concurrency Concurrency level
-     * @param array $level_summary Summary for this concurrency level
+     * @param array<string, mixed> $level_summary Summary for this concurrency level
      */
-    public function log_progressive_level($concurrency, $level_summary) {
+    public function log_progressive_level(int $concurrency, array $level_summary): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'progressive_level',
             'test_id' => $this->test_id,
@@ -206,22 +206,22 @@ class MicroChaos_Integration_Logger {
             'concurrency' => $concurrency,
             'summary' => $level_summary
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log custom metrics
-     * 
+     *
      * @param string $metric_name Metric name
      * @param mixed $value Metric value
-     * @param array $tags Additional tags
+     * @param array<string, mixed> $tags Additional tags
      */
-    public function log_metric($metric_name, $value, $tags = []) {
+    public function log_metric(string $metric_name, mixed $value, array $tags = []): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'metric',
             'test_id' => $this->test_id,
@@ -230,16 +230,16 @@ class MicroChaos_Integration_Logger {
             'value' => $value,
             'tags' => $tags
         ];
-        
+
         $this->log_event($data);
     }
-    
+
     /**
      * Log an event with JSON-encoded data
-     * 
-     * @param array $data Event data
+     *
+     * @param array<string, mixed> $data Event data
      */
-    private function log_event($data) {
+    private function log_event(array $data): void {
         // Add site URL to all events for multi-site monitoring
         $data['site_url'] = home_url();
         
