@@ -32,6 +32,9 @@ const sources = {
     path.join(__dirname, "microchaos/core/resource-monitor.php"),
     path.join(__dirname, "microchaos/core/cache-analyzer.php"),
     path.join(__dirname, "microchaos/core/reporting-engine.php"),
+    // Load orchestrators (before commands which depends on them)
+    path.join(__dirname, "microchaos/core/orchestrators/loadtest-orchestrator.php"),
+    // Load commands last (depends on orchestrators)
     path.join(__dirname, "microchaos/core/commands.php"),
   ],
 };
