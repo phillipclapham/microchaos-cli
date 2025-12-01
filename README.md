@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v2.1.0
+v3.0.0
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -33,16 +33,15 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ---
 
-## 🚨 Platform Limitations (Pressable & Similar Hosts)
+## 🚨 Platform Considerations (Pressable & Managed Hosts)
 
-### Loopback Request Restrictions
+### Optimized for Pressable
 
-When running MicroChaos on **Pressable** and similar managed WordPress hosts, be aware of these platform-specific limitations:
+MicroChaos v3.0.0 is optimized specifically for **Pressable** and similar managed WordPress hosts where loopback requests are rate-limited. The tool uses serial execution which works perfectly with platform restrictions.
 
-- **Rate Limiting**: Loopback requests are automatically rate-limited to ~10 concurrent requests
-- **Serial Processing Only**: Due to rate limiting, tests effectively run in serial mode regardless of concurrency settings
-- **Progressive Mode**: The `--progressive` flag will hit rate limits quickly, making it ineffective for finding true capacity limits
-- **Async Concurrency**: The `--concurrency-mode=async` flag cannot bypass platform rate limits
+- **Rate Limiting**: Loopback requests on Pressable are limited to ~10 concurrent requests
+- **Serial Processing**: MicroChaos uses serial execution optimized for this environment
+- **High Burst Counts**: Use large burst values (50-500+) to maximize throughput within rate limits
 
 ### Best Practices for Pressable
 
@@ -86,15 +85,6 @@ When running MicroChaos on **Pressable** and similar managed WordPress hosts, be
 - ✅ Custom headers and cookies
 - ✅ Requests/second capacity measurement
 
-### What's Limited by Platform
-
-- ⚠️ True concurrent/parallel request testing (all requests process serially)
-- ⚠️ Progressive mode (hits rate limits before finding true capacity)
-- ⚠️ Async concurrency mode (cannot bypass serial processing)
-- ⚠️ Simulating truly concurrent user sessions
-
-**Note**: These limitations are due to Pressable's security and stability measures, not bugs in MicroChaos. The tool remains highly effective for cache analysis, performance baseline testing, and simulating realistic serial traffic patterns.
-
 ---
 
 ## 🏗️ Architecture
@@ -112,7 +102,7 @@ microchaos/
     ├── reporting-engine.php # Results collection and reporting
     ├── integration-logger.php # External monitoring integration
     ├── thresholds.php     # Performance thresholds and visualization
-    └── parallel-test.php  # Parallel testing functionality
+    └── authentication-manager.php # Auth handling
 ```
 
 This architecture makes the codebase more maintainable, testable, and extensible for developers who want to customize or extend functionality.
@@ -162,75 +152,14 @@ wp microchaos loadtest --endpoint=home --count=100
 Or go wild:
 
 ```bash
-wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com --concurrency-mode=async --cache-headers --resource-logging
-```
-
-### Parallel Testing with JSON Plans
-
-The parallel testing feature uses JSON-formatted test plans to define multiple test scenarios that run concurrently.
-
-Create a test plan file (e.g., `test-plans.json`):
-
-```json
-[
-  {
-    "name": "Homepage Test",
-    "description": "Test homepage under load",
-    "endpoint": "home",
-    "requests": 100,
-    "concurrency": 10,
-    "method": "GET"
-  },
-  {
-    "name": "Shop Page Test",
-    "description": "Test shop page with authenticated user",
-    "endpoint": "shop",
-    "requests": 50,
-    "concurrency": 5,
-    "method": "GET",
-    "auth": "admin@example.com"
-  },
-  {
-    "name": "API Order Test",
-    "description": "Test API endpoint for creating orders",
-    "endpoint": "custom:/wp-json/wc/v3/orders",
-    "requests": 25,
-    "concurrency": 3,
-    "method": "POST",
-    "headers": {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer token123"
-    },
-    "body": {
-      "customer_id": 1,
-      "status": "pending",
-      "line_items": [
-        {
-          "product_id": 93,
-          "quantity": 2
-        }
-      ]
-    },
-    "thresholds": {
-      "response_time": 500,
-      "error_rate": 0.05
-    }
-  }
-]
-```
-
-Then run the parallel test:
-
-```bash
-wp microchaos paralleltest --file=test-plans.json --workers=5
+wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com --cache-headers --resource-logging
 ```
 
 ## 🔧 CLI Options
 
 ### Available Commands
 
-- `wp microchaos loadtest` Run a standard load test with various options
-- `wp microchaos paralleltest` Run multiple test plans in parallel with worker processes
+- `wp microchaos loadtest` Run a load test with various options
 
 ### Basic Options (loadtest)
 
@@ -240,21 +169,6 @@ wp microchaos paralleltest --file=test-plans.json --workers=5
 - `--duration=<minutes>` Run test for specified duration instead of fixed request count
 - `--burst=<n>` Requests per burst (default: 10)
 - `--delay=<seconds>` Delay between bursts (default: 2)
-
-### Parallel Testing Options (paralleltest)
-
-- `--file=<path>` Path to a JSON file containing test plan(s)
-- `--plan=<json>` JSON string containing test plan(s) directly in the command
-- `--workers=<number>` Number of parallel workers to use (default: 3)
-- `--output=<format>` Output format: json, table, csv (default: table)
-- `--timeout=<seconds>` Global timeout for test execution in seconds (default: 600)
-- `--export=<path>` Export results to specified file path (relative to wp-content directory)
-- `--export-format=<format>` Format for exporting results: json, csv (default: json)
-- `--export-detail=<level>` Detail level for exported results: summary, full (default: summary)
-- `--percentiles=<list>` Comma-separated list of percentiles to calculate (e.g., 90,95,99)
-- `--baseline=<name>` Compare results with a previously saved baseline
-- `--save-baseline=<name>` Save current results as a baseline for future comparisons
-- `--callback-url=<url>` Send test results to this URL upon completion (HTTP POST)
 
 ### Request Configuration
 
@@ -270,7 +184,6 @@ wp microchaos paralleltest --file=test-plans.json --workers=5
 - `--warm-cache` Prime the cache before testing
 - `--flush-between` Flush cache before each burst
 - `--log-to=<relative path>` Log results to file under wp-content/
-- `--concurrency-mode=async` Use curl_multi_exec() for parallel bursts
 - `--rotation-mode=<mode>` Control endpoint rotation (serial, random)
 - `--rampup` Gradually increase burst size to simulate organic load
 
@@ -283,16 +196,6 @@ wp microchaos paralleltest --file=test-plans.json --workers=5
 - `--compare-baseline=<n>` Compare results with a saved baseline
 - `--monitoring-integration` Enable external monitoring integration via PHP error log
 - `--monitoring-test-id=<id>` Specify custom test ID for monitoring integration
-
-### Progressive Load Testing
-
-- `--progressive` Run in progressive load testing mode to automatically find capacity limits
-- `--progressive-start=<n>` Initial concurrency level for progressive testing (default: 5)
-- `--progressive-step=<n>` Step size to increase concurrency in progressive testing (default: 5)
-- `--progressive-max=<n>` Maximum concurrency to try in progressive testing (default: 100)
-- `--threshold-response-time=<s>` Response time threshold in seconds (default: 3.0)
-- `--threshold-error-rate=<p>` Error rate threshold in percentage (default: 10)
-- `--threshold-memory=<p>` Memory usage threshold in percentage (default: 85)
 
 ### Threshold Calibration
 
@@ -310,51 +213,6 @@ Load test the homepage with cache warmup and log output
 
 ```bash
 wp microchaos loadtest --endpoint=home --count=100 --warm-cache --log-to=uploads/home-log.txt
-```
-
-### Parallel Testing Examples
-
-Run parallel tests defined in a JSON file with 5 workers
-
-```bash
-wp microchaos paralleltest --file=test-plans.json --workers=5
-```
-
-Run parallel tests with a JSON string
-
-```bash
-wp microchaos paralleltest --plan='[{"name":"Homepage Test","endpoint":"home","requests":50},{"name":"Checkout Test","endpoint":"checkout","requests":25,"auth":"user@example.com"}]'
-```
-
-Run parallel tests and output results as JSON
-
-```bash
-wp microchaos paralleltest --file=test-plans.json --output=json
-```
-
-Run tests and export detailed results in CSV format
-
-```bash
-wp microchaos paralleltest --file=test-plans.json --export=results.csv --export-format=csv --export-detail=full
-```
-
-Calculate additional percentiles and include them in results
-
-```bash
-wp microchaos paralleltest --file=test-plans.json --percentiles=50,75,90,95,99
-```
-
-Save results as baseline and compare with previous baseline
-
-```bash
-wp microchaos paralleltest --file=test-plans.json --save-baseline=api-test
-wp microchaos paralleltest --file=test-plans.json --baseline=api-test
-```
-
-Simulate async WooCommerce cart traffic
-
-```bash
-wp microchaos loadtest --endpoint=cart --count=50 --concurrency-mode=async
 ```
 
 Test multiple endpoints with random rotation
@@ -415,18 +273,6 @@ Run a test with trend analysis to detect potential memory leaks
 
 ```bash
 wp microchaos loadtest --endpoint=home --duration=10 --resource-logging --resource-trends
-```
-
-Run progressive load testing to find capacity limits
-
-```bash
-wp microchaos loadtest --endpoint=home --progressive --resource-logging
-```
-
-Run progressive load testing with custom thresholds and limits
-
-```bash
-wp microchaos loadtest --endpoint=home --progressive --threshold-response-time=2 --progressive-max=150
 ```
 
 Auto-calibrate thresholds based on the site's current performance

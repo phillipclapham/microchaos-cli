@@ -24,53 +24,6 @@ class MicroChaos_Commands {
     }
     
     /**
-     * Run parallel load tests using multiple workers.
-     *
-     * ## DESCRIPTION
-     *
-     * Runs multiple load tests in parallel using a JSON test plan configuration.
-     * This allows simulating more realistic mixed traffic patterns, such as anonymous users
-     * browsing products while logged-in users checkout simultaneously.
-     *
-     * The test plan can be provided either as a direct JSON string or as a path to a JSON file.
-     * 
-     * ## OPTIONS
-     *
-     * [--file=<path>]
-     * : Path to a JSON file containing test plan(s)
-     *
-     * [--plan=<json>]
-     * : JSON string containing test plan(s) directly in the command
-     *
-     * [--workers=<number>]
-     * : Number of parallel workers to use. Default: 3
-     *
-     * [--output=<format>]
-     * : Output format. Options: json, table, csv. Default: table
-     *
-     * ## EXAMPLES
-     *
-     *     # Run parallel tests defined in a JSON file
-     *     wp microchaos paralleltest --file=test-plans.json
-     *
-     *     # Run parallel tests with a JSON string
-     *     wp microchaos paralleltest --plan='[{"name":"Homepage Test","target":"home","requests":50},{"name":"Checkout Test","target":"checkout","requests":25,"auth":"user@example.com"}]'
-     *
-     *     # Run parallel tests with 5 workers
-     *     wp microchaos paralleltest --file=test-plans.json --workers=5
-     *
-     *     # Run parallel tests and output results as JSON
-     *     wp microchaos paralleltest --file=test-plans.json --output=json
-     *
-     * @param array $args Command arguments
-     * @param array $assoc_args Command options
-     */
-    public function paralleltest($args, $assoc_args) {
-        $parallel_test = new MicroChaos_ParallelTest();
-        $parallel_test->run($args, $assoc_args);
-    }
-
-    /**
      * Run an internal load test using loopback requests.
      *
      * ## DESCRIPTION
@@ -79,11 +32,9 @@ class MicroChaos_Commands {
      * on a given endpoint to allow monitoring of how the site responds under burst or sustained
      * load. Supports authenticated user testing, cache behavior toggles, and generates
      * a post-test summary report with timing metrics.
-     * 
-     * With progressive load testing, you can automatically determine the maximum load your site
-     * can handle before performance degradation occurs.
      *
      * Designed for staging environments where external load testing is restricted.
+     * Optimized for Pressable and other managed WordPress hosts with loopback rate limiting.
      * Logs go to PHP error log and optionally to a local file under wp-content/.
      *
      * ## HOW TO USE
@@ -95,9 +46,6 @@ class MicroChaos_Commands {
      * to a point of concern.
      *
      * 3. Watch server-level metrics (PHP error logs, memory usage, CPU load) to see if you're hitting resource ceilings.
-     * 
-     * 4. For automatic capacity testing, use progressive mode to gradually increase load until
-     *    performance thresholds are exceeded.
      *
      * ## OPTIONS
      *
@@ -153,9 +101,6 @@ class MicroChaos_Commands {
      * [--header=<header>]
      * : Set custom HTTP headers in name=value format. Use comma for multiple headers. Example: X-Test=123,Authorization=Bearer abc123
      *
-     * [--concurrency-mode=<mode>]
-     * : Use 'async' to simulate concurrent requests in each burst. Default: serial
-     *
      * [--rampup]
      * : Gradually increase the number of concurrent requests from 1 up to the burst limit.
      *
@@ -176,28 +121,7 @@ class MicroChaos_Commands {
      *
      * [--compare-baseline=<name>]
      * : Compare results with a previously saved baseline (defaults to 'default').
-     * 
-     * [--progressive]
-     * : Run in progressive load testing mode to find the maximum capacity.
-     * 
-     * [--progressive-start=<number>]
-     * : Initial concurrency level for progressive testing (default: 5).
-     * 
-     * [--progressive-step=<number>]
-     * : Step size to increase concurrency in progressive testing (default: 5).
-     * 
-     * [--progressive-max=<number>]
-     * : Maximum concurrency level to try in progressive testing (default: 100).
-     * 
-     * [--threshold-response-time=<seconds>]
-     * : Response time threshold in seconds for progressive testing (default: 3.0).
-     * 
-     * [--threshold-error-rate=<percentage>]
-     * : Error rate threshold percentage for progressive testing (default: 10%).
-     * 
-     * [--threshold-memory=<percentage>]
-     * : Memory usage threshold percentage for progressive testing (default: 85%).
-     * 
+     *
      * [--auto-thresholds]
      * : Automatically calibrate thresholds based on this test run.
      * 
@@ -226,9 +150,6 @@ class MicroChaos_Commands {
      *
      *     # Hit a custom endpoint and export all data
      *     wp microchaos loadtest --endpoint=custom:/my-page --count=25 --log-to=uploads/mypage-log.txt
-     *
-     *     # Load test with async concurrency
-     *     wp microchaos loadtest --endpoint=shop --count=100 --concurrency-mode=async
      *
      *     # Load test with ramp-up
      *     wp microchaos loadtest --endpoint=shop --count=100 --rampup
@@ -265,16 +186,7 @@ class MicroChaos_Commands {
      *     
      *     # Run load test with resource trend tracking to detect memory leaks
      *     wp microchaos loadtest --endpoint=home --duration=10 --resource-logging --resource-trends
-     *     
-     *     # Run progressive load testing to find max capacity
-     *     wp microchaos loadtest --endpoint=home --progressive --resource-logging
-     *     
-     *     # Run progressive load test with custom thresholds
-     *     wp microchaos loadtest --endpoint=home --progressive --threshold-response-time=2 --threshold-error-rate=5
-     *     
-     *     # Run progressive load test with custom start/step/max values
-     *     wp microchaos loadtest --endpoint=home --progressive --progressive-start=10 --progressive-step=10 --progressive-max=200
-     *     
+     *
      *     # Auto-calibrate thresholds based on site's current performance
      *     wp microchaos loadtest --endpoint=home --count=50 --auto-thresholds
      *     
@@ -314,18 +226,7 @@ class MicroChaos_Commands {
         $custom_headers = $assoc_args['header'] ?? null;
         $rotation_mode = $assoc_args['rotation-mode'] ?? 'serial';
         $collect_cache_headers = isset($assoc_args['cache-headers']);
-        
-        // Progressive load testing parameters
-        $progressive_mode = isset($assoc_args['progressive']);
-        $progressive_start = intval($assoc_args['progressive-start'] ?? MicroChaos_Thresholds::PROGRESSIVE_INITIAL_LOAD);
-        $progressive_step = intval($assoc_args['progressive-step'] ?? MicroChaos_Thresholds::PROGRESSIVE_STEP_INCREASE);
-        $progressive_max = intval($assoc_args['progressive-max'] ?? MicroChaos_Thresholds::PROGRESSIVE_MAX_LOAD);
-        
-        // Custom thresholds for progressive testing
-        $threshold_response_time = floatval($assoc_args['threshold-response-time'] ?? MicroChaos_Thresholds::RESPONSE_TIME_CRITICAL);
-        $threshold_error_rate = floatval($assoc_args['threshold-error-rate'] ?? MicroChaos_Thresholds::ERROR_RATE_CRITICAL);
-        $threshold_memory = floatval($assoc_args['threshold-memory'] ?? MicroChaos_Thresholds::MEMORY_USAGE_CRITICAL);
-        
+
         // Threshold calibration parameters
         $auto_thresholds = isset($assoc_args['auto-thresholds']);
         $threshold_profile = $assoc_args['auto-thresholds-profile'] ?? 'default';
@@ -504,12 +405,10 @@ class MicroChaos_Commands {
                 'burst' => $burst,
                 'delay' => $delay,
                 'method' => $method,
-                'concurrency_mode' => isset($assoc_args['concurrency-mode']) ? $assoc_args['concurrency-mode'] : 'serial',
-                'progressive' => $progressive_mode,
                 'is_auth' => ($auth_user !== null || $multi_auth !== null),
                 'cache_headers' => $collect_cache_headers,
                 'resource_logging' => $resource_logging,
-                'test_type' => $progressive_mode ? 'progressive' : ($duration ? 'duration' : 'count')
+                'test_type' => $duration ? 'duration' : 'count'
             ];
             
             $integration_logger->log_test_start($config);
@@ -593,26 +492,13 @@ class MicroChaos_Commands {
                 $burst_urls[] = $selected['url'];
             }
 
-            // Fire requests
+            // Fire requests (serial mode - optimized for Pressable rate limiting)
             $results = [];
-            if (isset($assoc_args['concurrency-mode']) && $assoc_args['concurrency-mode'] === 'async') {
-                // Async mode - group by URL for efficiency
-                $url_groups = array_count_values($burst_urls);
-
-                foreach ($url_groups as $url => $url_count) {
-                    $batch_results = $request_generator->fire_requests_async(
-                        $url, $log_path, $cookies, $url_count, $method, $body
-                    );
-                    $results = array_merge($results, $batch_results);
-                }
-            } else {
-                // Serial mode
-                foreach ($burst_urls as $url) {
-                    $result = $request_generator->fire_request(
-                        $url, $log_path, $cookies, $method, $body
-                    );
-                    $results[] = $result;
-                }
+            foreach ($burst_urls as $url) {
+                $result = $request_generator->fire_request(
+                    $url, $log_path, $cookies, $method, $body
+                );
+                $results[] = $result;
             }
 
             // Add results to reporting engine
@@ -763,322 +649,13 @@ class MicroChaos_Commands {
             \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
         }
 
-        if ($progressive_mode) {
-            // Switch to progressive load testing mode
-            $this->run_progressive_test(
-                $endpoint_list,
-                $log_path,
-                $cookies,
-                $method,
-                $body,
-                $progressive_start,
-                $progressive_step,
-                $progressive_max,
-                $threshold_response_time,
-                $threshold_error_rate,
-                $threshold_memory,
-                $delay,
-                $flush,
-                $warm,
-                $collect_cache_headers,
-                $rotation_mode,
-                $resource_logging,
-                $monitoring_integration,
-                $integration_logger,
-                $resource_trends
-            );
-        } elseif ($run_by_duration) {
+        if ($run_by_duration) {
             $total_minutes = $duration;
             $actual_seconds = time() - $start_time;
             $actual_minutes = round($actual_seconds / 60, 1);
             \WP_CLI::success("✅ Load test complete: $completed requests fired over $actual_minutes minutes.");
         } else {
             \WP_CLI::success("✅ Load test complete: $count requests fired.");
-        }
-    }
-    
-    /**
-     * Run progressive load testing to find capacity limits
-     *
-     * @param array  $endpoint_list        List of endpoints to test
-     * @param string $log_path             Path for logging
-     * @param array  $cookies              Authentication cookies
-     * @param string $method               HTTP method
-     * @param string $body                 Request body
-     * @param int    $progressive_start    Starting concurrency level
-     * @param int    $progressive_step     Step size for increasing concurrency
-     * @param int    $progressive_max      Maximum concurrency to test
-     * @param float  $threshold_resp_time  Response time threshold in seconds
-     * @param float  $threshold_error_rate Error rate threshold as percentage
-     * @param float  $threshold_memory     Memory usage threshold as percentage
-     * @param int    $delay                Delay between bursts
-     * @param bool   $flush                Whether to flush cache between bursts
-     * @param bool   $warm                 Whether to warm cache
-     * @param bool   $collect_cache_headers Whether to collect cache headers
-     * @param string $rotation_mode        Endpoint rotation mode
-     * @param bool   $resource_logging     Whether to log resource usage
-     * @param bool   $monitoring_integration Whether to log data for external monitoring
-     * @param object $integration_logger   Integration logger instance
-     * @param bool   $resource_trends      Whether to track and analyze resource trends
-     */
-    protected function run_progressive_test(
-        $endpoint_list,
-        $log_path,
-        $cookies,
-        $method,
-        $body,
-        $progressive_start,
-        $progressive_step,
-        $progressive_max,
-        $threshold_resp_time,
-        $threshold_error_rate,
-        $threshold_memory,
-        $delay,
-        $flush,
-        $warm,
-        $collect_cache_headers,
-        $rotation_mode,
-        $resource_logging,
-        $monitoring_integration = false,
-        $integration_logger = null,
-        $resource_trends = false
-    ) {
-        // Initialize components
-        $request_generator = new MicroChaos_Request_Generator([
-            'collect_cache_headers' => $collect_cache_headers,
-        ]);
-        $resource_monitor = new MicroChaos_Resource_Monitor([
-            'track_trends' => $resource_trends
-        ]);
-        $cache_analyzer = new MicroChaos_Cache_Analyzer();
-        $reporting_engine = new MicroChaos_Reporting_Engine();
-        
-        \WP_CLI::log("🚀 MicroChaos Progressive Load Test Started");
-        \WP_CLI::log("-> Testing capacity limits with progressive load increases");
-        \WP_CLI::log("-> Starting at: $progressive_start concurrent requests");
-        \WP_CLI::log("-> Step size: $progressive_step concurrent requests");
-        \WP_CLI::log("-> Maximum: $progressive_max concurrent requests");
-        \WP_CLI::log("-> Thresholds: Response time ${threshold_resp_time}s | Error rate ${threshold_error_rate}% | Memory ${threshold_memory}%");
-        
-        if (count($endpoint_list) === 1) {
-            \WP_CLI::log("-> URL: {$endpoint_list[0]['url']}");
-        } else {
-            \WP_CLI::log("-> URLs: " . count($endpoint_list) . " endpoints (" . 
-                          implode(', ', array_column($endpoint_list, 'slug')) . ") - Rotation mode: $rotation_mode");
-        }
-        
-        // Warm cache if specified
-        if ($warm) {
-            \WP_CLI::log("🧤 Warming cache...");
-            foreach ($endpoint_list as $endpoint_item) {
-                $warm_result = $request_generator->fire_request($endpoint_item['url'], $log_path, $cookies, $method, $body);
-                \WP_CLI::log("  Warmed {$endpoint_item['slug']}");
-            }
-        }
-        
-        // Track the breaking point metrics
-        $breaking_point = null;
-        $breaking_reason = null;
-        $last_summary = null;
-        $last_resource_summary = null;
-        $total_requests = 0;
-        $endpoint_index = 0; // For serial rotation
-        
-        // Run progressive load testing until thresholds are exceeded
-        for ($concurrency = $progressive_start; $concurrency <= $progressive_max; $concurrency += $progressive_step) {
-            \WP_CLI::log("\n📈 Testing concurrency level: $concurrency requests");
-            
-            // Reset per-iteration tracking
-            $reporting_engine->reset_results();
-            if ($resource_logging) {
-                $resource_monitor = new MicroChaos_Resource_Monitor(); // Reset for this level
-            }
-            
-            // Monitor resources if enabled
-            if ($resource_logging) {
-                $resource_data = $resource_monitor->log_resource_utilization();
-            }
-            
-            // Flush cache if specified
-            if ($flush) {
-                \WP_CLI::log("♻️ Flushing cache before test level...");
-                wp_cache_flush();
-            }
-            
-            // Select URLs for this concurrency level based on rotation mode
-            $burst_urls = [];
-            for ($i = 0; $i < $concurrency; $i++) {
-                if ($rotation_mode === 'random') {
-                    // Random selection
-                    $selected = $endpoint_list[array_rand($endpoint_list)];
-                } else {
-                    // Serial rotation
-                    $selected = $endpoint_list[$endpoint_index % count($endpoint_list)];
-                    $endpoint_index++;
-                }
-                
-                $burst_urls[] = $selected['url'];
-            }
-            
-            // Fire requests
-            $results = [];
-            // Always use async for progressive testing
-            // Group by URL for efficiency
-            $url_groups = array_count_values($burst_urls);
-            
-            foreach ($url_groups as $url => $url_count) {
-                $batch_results = $request_generator->fire_requests_async(
-                    $url, $log_path, $cookies, $url_count, $method, $body
-                );
-                $results = array_merge($results, $batch_results);
-            }
-            
-            // Add results to reporting engine
-            $reporting_engine->add_results($results);
-            $total_requests += count($results);
-            
-            // Process cache headers
-            if ($collect_cache_headers) {
-                $cache_headers = $request_generator->get_cache_headers();
-                foreach ($cache_headers as $header => $values) {
-                    foreach ($values as $value => $header_count) {
-                        $cache_analyzer->collect_headers([$header => $value]);
-                    }
-                }
-                // Reset cache headers to prevent accumulation across bursts
-                $request_generator->reset_cache_headers();
-            }
-            
-            // Generate summary for this concurrency level
-            $summary = $reporting_engine->generate_summary();
-            $last_summary = $summary;
-            
-            // Check if any thresholds have been exceeded
-            $avg_response_time = $summary['timing']['avg'];
-            $error_rate = $summary['error_rate'];
-            
-            // Get resource utilization if enabled
-            $memory_percentage = null;
-            if ($resource_logging) {
-                $resource_summary = $resource_monitor->generate_summary();
-                $last_resource_summary = $resource_summary;
-                $memory_limit = MicroChaos_Thresholds::get_php_memory_limit_mb();
-                $memory_percentage = ($resource_summary['memory']['max'] / $memory_limit) * 100;
-            }
-            
-            // Log progressive level to integration logger if enabled
-            if ($monitoring_integration && $integration_logger) {
-                $level_data = [
-                    'concurrency' => $concurrency,
-                    'timing' => $summary['timing'],
-                    'error_rate' => $error_rate
-                ];
-                
-                if ($resource_logging) {
-                    $level_data['resource'] = $resource_summary;
-                    $level_data['memory_percentage'] = $memory_percentage;
-                }
-                
-                $integration_logger->log_progressive_level($concurrency, $level_data);
-            }
-            
-            // Report summary for this level
-            \WP_CLI::log("Results at concurrency $concurrency:");
-            \WP_CLI::log("  Avg response: " . MicroChaos_Thresholds::format_value($avg_response_time, 'response_time') . 
-                         " | Error rate: " . MicroChaos_Thresholds::format_value($error_rate, 'error_rate'));
-            
-            if ($resource_logging) {
-                \WP_CLI::log("  Max memory: " . MicroChaos_Thresholds::format_value($resource_summary['memory']['max'], 'memory_usage') . 
-                             " (" . round($memory_percentage, 1) . "% of limit)");
-            }
-            
-            // Check thresholds
-            if ($avg_response_time > $threshold_resp_time) {
-                $breaking_point = $concurrency;
-                $breaking_reason = "Response time threshold exceeded ({$avg_response_time}s > {$threshold_resp_time}s)";
-                break;
-            }
-            
-            if ($error_rate > $threshold_error_rate) {
-                $breaking_point = $concurrency;
-                $breaking_reason = "Error rate threshold exceeded ({$error_rate}% > {$threshold_error_rate}%)";                
-                break;
-            }
-            
-            if ($resource_logging && $memory_percentage > $threshold_memory) {
-                $breaking_point = $concurrency;
-                $breaking_reason = "Memory usage threshold exceeded ({$memory_percentage}% > {$threshold_memory}%)";                
-                break;
-            }
-            
-            // Add delay before next level
-            if ($concurrency + $progressive_step <= $progressive_max) {
-                $random_delay = rand($delay * 50, $delay * 150) / 100; // Random delay between 50% and 150% of base delay
-                \WP_CLI::log("⏳ Sleeping for {$random_delay}s before next level");
-                sleep((int)$random_delay);
-            }
-        }
-        
-        // Final report
-        \WP_CLI::log("\n📊 Progressive Load Test Results:");
-        \WP_CLI::log("   Total Requests Fired: $total_requests");
-        
-        if ($breaking_point) {
-            \WP_CLI::log("   💥 Breaking Point: $breaking_point concurrent requests");
-            \WP_CLI::log("   💥 Reason: $breaking_reason");
-            
-            // Calculate safe capacity (80% of breaking point as a conservative estimate)
-            $safe_capacity = max(1, floor($breaking_point * 0.8));
-            \WP_CLI::log("   ✓ Recommended Maximum Capacity: $safe_capacity concurrent requests");
-        } else {
-            \WP_CLI::log("   ✓ No breaking point found up to $progressive_max concurrent requests");
-            \WP_CLI::log("   ✓ The site can handle at least $progressive_max concurrent requests");
-        }
-        
-        // Show full summary of the last completed level
-        if ($last_summary) {
-            \WP_CLI::log("\n📈 Final Level Performance:");
-            $reporting_engine->report_summary(null, $last_summary);
-            
-            if ($resource_logging && $last_resource_summary) {
-                $resource_monitor->report_summary(null, $last_resource_summary);
-                
-                // Report resource trends if enabled
-                if ($resource_trends) {
-                    $resource_monitor->report_trends();
-                }
-            }
-            
-            if ($collect_cache_headers) {
-                $cache_analyzer->report_summary($reporting_engine->get_request_count());
-            }
-        }
-        
-        // Log test completion to integration logger if enabled
-        if ($monitoring_integration && $integration_logger && $last_summary) {
-            $final_data = [
-                'progressive_result' => [
-                    'breaking_point' => $breaking_point,
-                    'breaking_reason' => $breaking_reason,
-                    'total_requests' => $total_requests,
-                    'max_tested' => $breaking_point ?: $progressive_max,
-                    'recommended_capacity' => $breaking_point ? max(1, floor($breaking_point * 0.8)) : $progressive_max
-                ],
-                'summary' => $last_summary
-            ];
-            
-            if ($resource_logging && $last_resource_summary) {
-                $final_data['resource_summary'] = $last_resource_summary;
-            }
-            
-            $integration_logger->log_test_complete($final_data);
-            \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
-        }
-        
-        if ($breaking_point) {
-            \WP_CLI::success("✅ Progressive load test complete: Breaking point identified at $breaking_point concurrent requests.");
-        } else {
-            \WP_CLI::success("✅ Progressive load test complete: No breaking point found up to $progressive_max concurrent requests.");
         }
     }
 }

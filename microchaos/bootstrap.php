@@ -12,7 +12,7 @@ if (!defined('ABSPATH') && !defined('WP_CLI')) {
 }
 
 // Define constants
-define('MICROCHAOS_VERSION', '1.7');
+define('MICROCHAOS_VERSION', '3.0.0');
 define('MICROCHAOS_PATH', dirname(__FILE__));
 define('MICROCHAOS_CORE_PATH', MICROCHAOS_PATH . '/core');
 
@@ -58,7 +58,6 @@ class MicroChaos_Bootstrap {
         $core_components = [
             'thresholds.php',
             'integration-logger.php',
-            'parallel-test.php',
             'commands.php',
             'request-generator.php',
             'cache-analyzer.php',
