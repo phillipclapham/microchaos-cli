@@ -23,6 +23,43 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ---
 
+## 🆕 What's New in v3.0.0
+
+### Simplified & Focused
+
+v3.0.0 is a **radical simplification**. We removed features that didn't work reliably on Pressable (parallel testing, progressive mode) and focused on what actually delivers value:
+
+- **52% smaller codebase** - Removed 2,590 lines of non-functional code
+- **Single command** - `wp microchaos loadtest` does everything
+- **Serial execution optimized** - Works perfectly within Pressable's loopback rate limits
+
+### New Features
+
+- **Execution Metrics** - Every test now reports:
+  - Requests per second (RPS) achieved
+  - Capacity projections (hourly/daily/monthly)
+  - Test timestamps (human-readable + ISO 8601)
+  - Total duration with formatted display
+
+### Under the Hood
+
+- **100% type hints** - All public methods have PHP 8.2+ type declarations
+- **Testable architecture** - Logger interface enables unit testing without WordPress
+- **61 unit tests** - Core components tested in 14ms without WordPress runtime
+- **Clean separation** - Thin CLI wrapper (63 lines) + LoadTestOrchestrator (656 lines)
+
+### Removed Features
+
+These features were removed because they don't work on Pressable due to loopback rate limiting:
+
+- ❌ `wp microchaos parallel` - Parallel test execution
+- ❌ `wp microchaos progressive` - Progressive load testing
+- ❌ `--concurrency` flag - True concurrent requests
+
+If you need these features, use an external load testing tool (k6, Artillery, etc.) that can hit your site from outside.
+
+---
+
 ## 📦 Installation
 
 ### Standard Installation
@@ -35,77 +72,206 @@ Built for staging environments like **Pressable**, MicroChaos simulates traffic 
 
 ## 🚨 Platform Considerations (Pressable & Managed Hosts)
 
-### Optimized for Pressable
+MicroChaos is built specifically for **Pressable** and similar managed WordPress hosts where loopback requests are rate-limited (~10 concurrent max). The tool uses **serial execution** which works perfectly within these constraints.
 
-MicroChaos v3.0.0 is optimized specifically for **Pressable** and similar managed WordPress hosts where loopback requests are rate-limited. The tool uses serial execution which works perfectly with platform restrictions.
+### Understanding the `--burst` Flag
 
-- **Rate Limiting**: Loopback requests on Pressable are limited to ~10 concurrent requests
-- **Serial Processing**: MicroChaos uses serial execution optimized for this environment
-- **High Burst Counts**: Use large burst values (50-500+) to maximize throughput within rate limits
+The `--burst` flag controls how many **sequential** requests fire before pausing (via `--delay`). This is NOT concurrency—it's throughput control.
 
-### Best Practices for Pressable
+**Choosing burst values:**
 
-1. **Duration-Based Testing with High Bursts**: Run sustained tests to measure requests/second capacity
-   ```bash
-   wp microchaos loadtest --endpoints=home,shop,cart,checkout --duration=10 --burst=100 --resource-logging --resource-trends
-   ```
+| Site Speed | Recommended Burst | Reasoning |
+|------------|-------------------|-----------|
+| Fast (<100ms) | 200-500 | High throughput, quick completion |
+| Medium (100-500ms) | 50-200 | Balance throughput vs duration |
+| Slow (>500ms) | 20-50 | Avoid duration overshoot |
 
-2. **Endpoint Rotation**: Simulate realistic user flows by rotating through typical site paths
-   ```bash
-   wp microchaos loadtest --endpoints=home,shop,product,cart,checkout --rotation-mode=serial --duration=10 --burst=200
-   ```
+**⚠️ Duration Overshoot Warning:** In duration-based tests (`--duration=X`), the current burst always completes before the test stops. A 1-minute test with `--burst=500` on a slow site (1s per request) could run 8+ minutes. Start conservative, scale up.
 
-3. **Baseline Testing**: Start with smaller bursts to establish performance baseline, then scale up
-   ```bash
-   # Initial baseline
-   wp microchaos loadtest --endpoints=home,shop --duration=5 --burst=50 --save-baseline=initial
-   # Scale up based on site speed
-   wp microchaos loadtest --endpoints=home,shop --duration=10 --burst=500 --compare-baseline=initial
-   ```
+### The Essential Flag Combo
 
-4. **Resource Analysis**: Combine with Grafana/monitoring data to determine worker and RAM requirements
-   ```bash
-   wp microchaos loadtest --endpoints=home,shop,cart --duration=10 --burst=300 --resource-logging --resource-trends
-   ```
+For capacity planning, always combine these three:
 
-**Note**: The `--burst` flag controls how many **serial** requests are sent before pausing, not concurrent requests. Since Pressable processes requests serially due to loopback restrictions, you can use large burst values (50-500+) effectively. The key metrics are:
-- Total requests per second achieved
-- Resource utilization trends
-- Worker and memory requirements at target load
+```bash
+--resource-logging --resource-trends --cache-headers
+```
 
-### What Works Well on Pressable
+- **resource-logging**: Memory/CPU per burst (are we hitting limits?)
+- **resource-trends**: Memory over time (detecting leaks)
+- **cache-headers**: Pressable cache behavior (x-ac, x-nananana)
 
-- ✅ High-volume serial request testing (50-500+ burst sizes)
-- ✅ Duration-based load testing for sustained traffic simulation
-- ✅ Endpoint rotation to simulate real user flows
-- ✅ Resource monitoring and trend analysis
-- ✅ Cache warmup and behavior analysis
-- ✅ Authenticated user simulation
-- ✅ Baseline comparisons for performance tracking
-- ✅ Custom headers and cookies
-- ✅ Requests/second capacity measurement
+---
+
+## 📊 Capacity Planning Guide
+
+This is how MicroChaos is actually used for Pressable capacity audits.
+
+### The 3-Phase Workflow
+
+#### Phase 1: Baseline Discovery
+
+Establish how the site performs under known conditions:
+
+```bash
+wp microchaos loadtest --endpoint=home --duration=5 --burst=50 \
+  --warm-cache --resource-logging --cache-headers \
+  --save-baseline=initial
+```
+
+**What you're measuring:** Warm cache response times, baseline memory usage, cache hit rates.
+
+#### Phase 2: Sustained Load Testing
+
+Simulate realistic traffic over time to find degradation:
+
+```bash
+wp microchaos loadtest --endpoint=home --duration=10 --burst=100 \
+  --resource-logging --resource-trends --cache-headers
+```
+
+**What you're looking for:**
+- Does RPS stay stable or decline?
+- Does memory climb (leak) or stay flat?
+- What's the cache HIT/MISS ratio under load?
+
+#### Phase 3: Multi-Endpoint Rotation
+
+Test realistic user flows across the site:
+
+```bash
+wp microchaos loadtest --endpoints=home,shop,cart,checkout \
+  --duration=10 --burst=100 --rotation-mode=serial \
+  --resource-logging --resource-trends --cache-headers
+```
+
+**Why this matters:** Single-endpoint tests miss bottlenecks. Real users hit multiple paths, triggering different code, queries, and cache patterns.
+
+### Interpreting Results
+
+#### Execution Metrics (Capacity)
+
+```
+Throughput: 4.74 RPS
+Capacity: 17,064/hour | 409,536/day | 12.3M/month
+```
+
+**Decision logic:**
+- Compare achieved RPS to traffic requirements
+- If target is 10 RPS and you hit 4.7 RPS → need optimization or scaling
+- Capacity projections show monthly headroom
+
+#### Resource Trends (Stability)
+
+```
+Memory Trend: ↑12.3% over test duration
+Pattern: Moderate growth
+```
+
+| Trend | Meaning | Action |
+|-------|---------|--------|
+| Flat (±5%) | Stable, safe for sustained load | ✅ Good to go |
+| Climbing (5-15%) | Possible leak or buffer growth | ⚠️ Investigate plugins |
+| Steep climb (>15%) | Memory leak, will eventually crash | 🚨 Fix before scaling |
+
+#### Cache Headers (Efficiency)
+
+```
+Edge Cache (x-ac): HIT 20% | STALE 50% | UPDATING 30%
+Batcache (x-nananana): HIT 40% | MISS 60%
+```
+
+| Pattern | Meaning | Action |
+|---------|---------|--------|
+| High HIT % | Cache working well | ✅ Efficient |
+| High STALE % | Cache invalidating too often | Check invalidation logic |
+| High MISS % | Database getting hammered | Review caching strategy |
+
+### Common Audit Scenarios
+
+#### "Site is slow during peak hours"
+
+```bash
+# Warm cache baseline
+wp microchaos loadtest --endpoint=home --duration=5 --burst=50 \
+  --warm-cache --resource-logging --cache-headers --save-baseline=warm
+
+# Cold cache comparison (worst case)
+wp microchaos loadtest --endpoint=home --duration=5 --burst=50 \
+  --flush-between --resource-logging --cache-headers --compare-baseline=warm
+```
+
+**Look for:** Big gap between warm/cold = cache is critical. Small gap = cache isn't helping much.
+
+#### "How many users can we handle?"
+
+```bash
+# Start conservative
+wp microchaos loadtest --endpoint=home --duration=5 --burst=50 \
+  --resource-logging --auto-thresholds
+
+# Scale up incrementally
+wp microchaos loadtest --endpoint=home --duration=10 --burst=100 \
+  --resource-logging --use-thresholds=default
+
+wp microchaos loadtest --endpoint=home --duration=10 --burst=200 \
+  --resource-logging --use-thresholds=default
+```
+
+**Find the breaking point:** Where does RPS plateau? Where does memory peak? That's your capacity ceiling.
+
+#### "WooCommerce checkout is slow"
+
+```bash
+# Test checkout as authenticated user
+wp microchaos loadtest --endpoint=checkout --duration=10 --burst=50 \
+  --auth=customer@example.com \
+  --resource-logging --resource-trends --cache-headers --save-baseline=checkout
+
+# Compare to homepage (same auth)
+wp microchaos loadtest --endpoint=home --duration=10 --burst=50 \
+  --auth=customer@example.com \
+  --resource-logging --compare-baseline=checkout
+```
+
+**Look for:** Checkout 5-10x slower than home = WooCommerce overhead, plugin hooks, or external API calls.
 
 ---
 
 ## 🏗️ Architecture
 
-MicroChaos features a modular component-based architecture:
+MicroChaos features a modular component-based architecture with clean separation of concerns:
 
 ```text
 microchaos/
-├── bootstrap.php          # Component loader
-├── core/                  # Core components
-    ├── commands.php       # WP-CLI command handling
-    ├── request-generator.php # HTTP request management
-    ├── cache-analyzer.php # Cache header analysis
-    ├── resource-monitor.php # System resource tracking
-    ├── reporting-engine.php # Results collection and reporting
-    ├── integration-logger.php # External monitoring integration
-    ├── thresholds.php     # Performance thresholds and visualization
-    └── authentication-manager.php # Auth handling
+├── bootstrap.php                    # Component loader (v3.0.0)
+└── core/
+    ├── interfaces/
+    │   ├── logger.php               # Logger interface (testability)
+    │   └── baseline-storage.php     # Storage abstraction
+    ├── logging/
+    │   ├── wp-cli-logger.php        # Production logger
+    │   └── null-logger.php          # Test logger
+    ├── storage/
+    │   └── transient-baseline-storage.php
+    ├── orchestrators/
+    │   └── loadtest-orchestrator.php  # Test execution (656 lines)
+    ├── commands.php                 # Thin WP-CLI wrapper (63 lines)
+    ├── log.php                      # Static logger facade
+    ├── constants.php                # Centralized constants
+    ├── authentication-manager.php   # Auth utilities (8 static methods)
+    ├── request-generator.php        # HTTP request management
+    ├── cache-analyzer.php           # Cache header analysis
+    ├── resource-monitor.php         # System resource tracking
+    ├── reporting-engine.php         # Results and reporting
+    ├── integration-logger.php       # External monitoring
+    └── thresholds.php               # Thresholds and visualization
 ```
 
-This architecture makes the codebase more maintainable, testable, and extensible for developers who want to customize or extend functionality.
+**Key Design Decisions:**
+- **Thin CLI wrapper**: `commands.php` is just 63 lines - all logic lives in `LoadTestOrchestrator`
+- **Interface-based logging**: Swap `WP_CLI_Logger` for `Null_Logger` in tests
+- **100% type hints**: All public methods have PHP 8.2+ type declarations
+- **61 unit tests**: Pure PHP components tested without WordPress runtime
 
 ## 🔄 Build Process
 
@@ -114,7 +280,7 @@ MicroChaos uses a build system that compiles the modular version into a single-f
 ```text
 build.js                   # Node.js build script
 dist/                      # Generated distribution files
-└── microchaos-cli.php     # Compiled single-file version
+└── microchaos-cli.php     # Compiled single-file version (~123 KB)
 ```
 
 ### Building the Single-File Version
@@ -435,103 +601,6 @@ Track performance improvements or regressions across changes.
 
 ---
 
-### 📈 Progressive Load Testing Results
-
-```bash
-📊 Progressive Load Test Results:
-   Total Requests Fired: 312
-   💥 Breaking Point: 40 concurrent requests
-   💥 Reason: Response time threshold exceeded (3.254s > 3.0s)
-   ✓ Recommended Maximum Capacity: 32 concurrent requests
-
-📈 Final Level Performance:
-   Total Requests: 40
-   Success: 36 | Errors: 4 | Error Rate: 10%
-   Avg Time: 3.254s | Median: 3.126s
-   Fastest: 1.854s | Slowest: 5.387s
-
-   Memory Usage: Avg: 92.45 MB, Median: 92.45 MB, Min: 64.12 MB, Max: 103.78 MB
-   Peak Memory: Avg: 94.32 MB, Median: 94.32 MB, Min: 72.56 MB, Max: 107.41 MB
-```
-
-Automatically determine maximum capacity and recommended concurrent user limits.
-
----
-
-### 📊 Parallel Testing Results
-
-```bash
-🚀 MicroChaos Parallel Test Started
--> Test Plans: 3
--> Workers: 5
--> Timeout: 600 seconds
--> Output Format: table
--> Percentiles: 95, 99
-
-📋 Test Plan Summary:
-Test Plan #1: Homepage Test
-  Endpoint: home
-  Requests: 100 | Concurrency: 10
-  Method: GET
-
-Test Plan #2: Shop Page Test
-  Endpoint: shop
-  Requests: 50 | Concurrency: 5
-  Auth: admin@example.com
-
-Test Plan #3: API Order Test
-  Endpoint: custom:/wp-json/wc/v3/orders
-  Requests: 25 | Concurrency: 3
-  Method: POST
-  Headers: 2
-  Body: Yes
-  Thresholds: Response time: 500ms, Error rate: 0.05
-
--> Parallel execution enabled with 5 workers.
-
-📊 Test Results Summary:
-┌───────────────────────────────────────────────────────────────────────────┐
-│ Test Results                                                              │
-├───────────────────────────────────────────────────────────────────────────┤
-│ OVERALL SUMMARY                                                         │
-│ Total Requests: 175 | Success: 173 | Errors: 2 | Error Rate: 1.1%    │
-│ Avg Time: 0.217s | Median: 0.183s | Min: 0.102s | Max: 0.786s         │
-│ Percentiles: P95: 0.421s | P99: 0.654s                                 │
-├───────────────────────────────────────────────────────────────────────────┤
-│ RESULTS BY TEST PLAN                                                     │
-│ Homepage Test                                        │
-│   Requests: 100 | Success: 100 | Errors: 0 | Error Rate: 0.0%    │
-│   Avg Time: 0.184s | Median: 0.165s | Min: 0.102s | Max: 0.501s    │
-├───────────────────────────────────────────────────────────────────────────┤
-│ Shop Page Test                                       │
-│   Requests: 50 | Success: 49 | Errors: 1 | Error Rate: 2.0%    │
-│   Avg Time: 0.251s | Median: 0.223s | Min: 0.142s | Max: 0.622s    │
-├───────────────────────────────────────────────────────────────────────────┤
-│ API Order Test                                       │
-│   Requests: 25 | Success: 24 | Errors: 1 | Error Rate: 4.0%    │
-│   Avg Time: 0.273s | Median: 0.231s | Min: 0.154s | Max: 0.786s    │
-│ ⚠️ Threshold violations for API Order Test:                  │
-│    - Error rate exceeded threshold: 4.0% > 5.0%                        │
-├───────────────────────────────────────────────────────────────────────────┤
-│ RESPONSE TIME DISTRIBUTION                                              │
-│ 0.10s - 0.17s [████████████████████                ] 63    │
-│ 0.17s - 0.24s [███████████████████████             ] 72    │
-│ 0.24s - 0.31s [████████                            ] 16    │
-│ 0.31s - 0.38s [████                                ] 8     │
-│ 0.38s - 0.45s [███                                 ] 6     │
-│ 0.45s - 0.52s [██                                  ] 4     │
-│ 0.52s - 0.59s [██                                  ] 3     │
-│ 0.59s - 0.66s [█                                   ] 2     │
-│ 0.66s - 0.73s [                                    ] 0     │
-│ 0.73s - 0.80s [█                                   ] 1     │
-└───────────────────────────────────────────────────────────────────────────┘
-🎉 Parallel Test Execution Complete
-```
-
-Run multiple test plans simultaneously to simulate realistic mixed traffic patterns.
-
----
-
 ## 🧠 Design Philosophy
 
 "Improvisation > Perfection. Paradox is fuel."
@@ -544,11 +613,21 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ---
 
-## 🛠 Future Ideas
+## 🛠 Roadmap
 
-- **Advanced visualizations** - Implement interactive charts and graphs for more detailed visual analysis of test results.
+### Phase 4: GraphQL & Headless WordPress (Next)
 
-- **Custom test plan templates** - Provide a library of pre-configured test plans for common testing scenarios (e.g., e-commerce checkout flows, membership sites, etc.).
+The primary goal for MicroChaos is **GraphQL endpoint testing** for headless WordPress:
+
+- **WPGraphQL integration** - Detect and test GraphQL endpoints
+- **Query generation** - Generate test queries from schema
+- **JWT/OAuth authentication** - Headless auth patterns
+- **Query complexity metrics** - Track resolver performance
+
+### Future Ideas
+
+- **Advanced visualizations** - Interactive charts for test results
+- **Custom test templates** - Pre-configured plans for e-commerce, membership sites, etc.
 
 ---
 
