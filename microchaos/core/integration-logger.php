@@ -96,26 +96,31 @@ class MicroChaos_Integration_Logger {
     
     /**
      * Log test completion event
-     * 
+     *
      * @param array $summary Test summary
-     * @param array $resource_summary Resource summary if available
+     * @param array|null $resource_summary Resource summary if available
+     * @param array|null $execution_metrics Execution timing and throughput metrics
      */
-    public function log_test_complete($summary, $resource_summary = null) {
+    public function log_test_complete(array $summary, ?array $resource_summary = null, ?array $execution_metrics = null): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'test_complete',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'summary' => $summary
         ];
-        
+
         if ($resource_summary) {
             $data['resource_summary'] = $resource_summary;
         }
-        
+
+        if ($execution_metrics) {
+            $data['execution'] = $execution_metrics;
+        }
+
         $this->log_event($data);
     }
     

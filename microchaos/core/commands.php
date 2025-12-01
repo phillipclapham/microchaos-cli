@@ -429,7 +429,10 @@ class MicroChaos_Commands {
         $completed = 0;
         $current_ramp = $rampup ? 1 : $burst; // Start ramp-up at 1 concurrent request if enabled
         $endpoint_index = 0; // For serial rotation
-        
+
+        // Capture precise test start timestamp for execution metrics
+        $test_start_timestamp = microtime(true);
+
         // Set up duration-based testing
         $start_time = time();
         $end_time = $duration ? $start_time + ($duration * 60) : null;
@@ -556,6 +559,30 @@ class MicroChaos_Commands {
             }
         }
 
+        // Capture end timestamp and calculate execution metrics
+        $test_end_timestamp = microtime(true);
+        $test_duration = $test_end_timestamp - $test_start_timestamp;
+
+        // Build execution metrics
+        $execution_metrics = [
+            'started_at' => date('Y-m-d H:i:s', (int)$test_start_timestamp),
+            'started_at_iso' => date('c', (int)$test_start_timestamp),
+            'ended_at' => date('Y-m-d H:i:s', (int)$test_end_timestamp),
+            'ended_at_iso' => date('c', (int)$test_end_timestamp),
+            'duration_seconds' => round($test_duration, 2),
+            'duration_formatted' => $this->format_duration($test_duration),
+            'total_requests' => $completed,
+            'throughput_rps' => $test_duration > 0 ? round($completed / $test_duration, 2) : 0,
+        ];
+
+        // Add capacity projections
+        $rps = $execution_metrics['throughput_rps'];
+        $execution_metrics['capacity'] = [
+            'per_hour' => (int)($rps * 3600),
+            'per_day' => (int)($rps * 86400),
+            'per_month' => (int)($rps * 2592000),
+        ];
+
         // Handle baseline comparison if specified
         $compare_baseline = isset($assoc_args['compare-baseline']) ? $assoc_args['compare-baseline'] : null;
         $save_baseline = isset($assoc_args['save-baseline']) ? $assoc_args['save-baseline'] : null;
@@ -608,7 +635,7 @@ class MicroChaos_Commands {
         }
         
         // Display reports with appropriate thresholds
-        $reporting_engine->report_summary($perf_baseline, null, $use_thresholds);
+        $reporting_engine->report_summary($perf_baseline, null, $use_thresholds, $execution_metrics);
 
         // Report resource utilization if enabled
         if ($resource_logging) {
@@ -645,7 +672,7 @@ class MicroChaos_Commands {
                 $summary['cache'] = $cache_report;
             }
             
-            $integration_logger->log_test_complete($summary, $resource_summary);
+            $integration_logger->log_test_complete($summary, $resource_summary, $execution_metrics);
             \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
         }
 
@@ -657,5 +684,21 @@ class MicroChaos_Commands {
         } else {
             \WP_CLI::success("✅ Load test complete: $count requests fired.");
         }
+    }
+
+    /**
+     * Format duration in human-readable format
+     *
+     * @param float $seconds Duration in seconds
+     * @return string Formatted duration (e.g., "5m 15s" or "45s")
+     */
+    private function format_duration(float $seconds): string {
+        $minutes = floor($seconds / 60);
+        $secs = round($seconds % 60);
+
+        if ($minutes > 0) {
+            return "{$minutes}m {$secs}s";
+        }
+        return "{$secs}s";
     }
 }

@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-12-01T16:23:37.965Z
+ * Generated on: 2025-12-01T17:12:20.075Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -818,26 +818,31 @@ class MicroChaos_Integration_Logger {
     
     /**
      * Log test completion event
-     * 
+     *
      * @param array $summary Test summary
-     * @param array $resource_summary Resource summary if available
+     * @param array|null $resource_summary Resource summary if available
+     * @param array|null $execution_metrics Execution timing and throughput metrics
      */
-    public function log_test_complete($summary, $resource_summary = null) {
+    public function log_test_complete(array $summary, ?array $resource_summary = null, ?array $execution_metrics = null): void {
         if (!$this->enabled) {
             return;
         }
-        
+
         $data = [
             'event' => 'test_complete',
             'test_id' => $this->test_id,
             'timestamp' => time(),
             'summary' => $summary
         ];
-        
+
         if ($resource_summary) {
             $data['resource_summary'] = $resource_summary;
         }
-        
+
+        if ($execution_metrics) {
+            $data['execution'] = $execution_metrics;
+        }
+
         $this->log_event($data);
     }
     
@@ -2208,12 +2213,13 @@ class MicroChaos_Reporting_Engine {
 
     /**
      * Report summary to CLI
-     * 
+     *
      * @param array|null $baseline Optional baseline data for comparison
      * @param array|null $provided_summary Optional pre-generated summary (useful for progressive tests)
      * @param string|null $threshold_profile Optional threshold profile to use for formatting
+     * @param array|null $execution_metrics Optional execution timing and throughput metrics
      */
-    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null): void {
+    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null, ?array $execution_metrics = null): void {
         $summary = $provided_summary ?: $this->generate_summary();
 
         if ($summary['count'] === 0) {
@@ -2225,42 +2231,66 @@ class MicroChaos_Reporting_Engine {
 
         if (class_exists('WP_CLI')) {
             $error_rate = $summary['error_rate'];
-            
-            \WP_CLI::log("📊 Load Test Summary:");
-            \WP_CLI::log("   Total Requests: {$summary['count']}");
+
+            \WP_CLI::log("📊 Load Test Summary");
+            \WP_CLI::log("   ═══════════════════════════════════════════════════");
+
+            // Test Execution Metrics section
+            if ($execution_metrics) {
+                \WP_CLI::log("   Test Execution:");
+                \WP_CLI::log("     Started:    {$execution_metrics['started_at']}");
+                \WP_CLI::log("     Ended:      {$execution_metrics['ended_at']}");
+                \WP_CLI::log("     Duration:   {$execution_metrics['duration_seconds']}s ({$execution_metrics['duration_formatted']})");
+                \WP_CLI::log("     Requests:   {$execution_metrics['total_requests']}");
+                \WP_CLI::log("     Throughput: {$execution_metrics['throughput_rps']} req/s");
+
+                if (isset($execution_metrics['capacity'])) {
+                    \WP_CLI::log("");
+                    \WP_CLI::log("   Capacity Projection (at current throughput):");
+                    \WP_CLI::log("     Per hour:   " . number_format($execution_metrics['capacity']['per_hour']) . " requests");
+                    \WP_CLI::log("     Per day:    " . number_format($execution_metrics['capacity']['per_day']) . " requests");
+                    \WP_CLI::log("     Per month:  ~" . $this->format_large_number($execution_metrics['capacity']['per_month']) . " requests");
+                    \WP_CLI::log("     ⚠️  Assumes sustained throughput. Actual capacity depends on workers, RAM, cache hit rate.");
+                }
+                \WP_CLI::log("   ═══════════════════════════════════════════════════");
+                \WP_CLI::log("");
+            }
+
+            \WP_CLI::log("   Response Statistics:");
+            \WP_CLI::log("     Total Requests: {$summary['count']}");
             
             $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate', $threshold_profile);
-            \WP_CLI::log("   Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
+            \WP_CLI::log("     Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
             
             // Format with threshold colors
             $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time', $threshold_profile);
             $median_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['median'], 'response_time', $threshold_profile);
             $max_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['max'], 'response_time', $threshold_profile);
             
-            \WP_CLI::log("   Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
-            \WP_CLI::log("   Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
-            
+            \WP_CLI::log("     Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
+            \WP_CLI::log("     Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
+
             // Add comparison with baseline if provided
             if ($baseline && isset($baseline['timing'])) {
-                $avg_change = $baseline['timing']['avg'] > 0 
-                    ? (($summary['timing']['avg'] - $baseline['timing']['avg']) / $baseline['timing']['avg']) * 100 
+                $avg_change = $baseline['timing']['avg'] > 0
+                    ? (($summary['timing']['avg'] - $baseline['timing']['avg']) / $baseline['timing']['avg']) * 100
                     : 0;
                 $avg_change = round($avg_change, 1);
-                
-                $median_change = $baseline['timing']['median'] > 0 
-                    ? (($summary['timing']['median'] - $baseline['timing']['median']) / $baseline['timing']['median']) * 100 
+
+                $median_change = $baseline['timing']['median'] > 0
+                    ? (($summary['timing']['median'] - $baseline['timing']['median']) / $baseline['timing']['median']) * 100
                     : 0;
                 $median_change = round($median_change, 1);
-                
+
                 $change_indicator = $avg_change <= 0 ? '↓' : '↑';
                 $change_color = $avg_change <= 0 ? "\033[32m" : "\033[31m";
-                
-                \WP_CLI::log("   Comparison to Baseline:");
-                \WP_CLI::log("   - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
-                
+
+                \WP_CLI::log("     Comparison to Baseline:");
+                \WP_CLI::log("       - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
+
                 $change_indicator = $median_change <= 0 ? '↓' : '↑';
                 $change_color = $median_change <= 0 ? "\033[32m" : "\033[31m";
-                \WP_CLI::log("   - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
+                \WP_CLI::log("       - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
             }
             
             // Add response time distribution histogram
@@ -2340,6 +2370,23 @@ class MicroChaos_Reporting_Engine {
             default:
                 return false;
         }
+    }
+
+    /**
+     * Format large numbers in human-readable format (K, M, B)
+     *
+     * @param int $number Number to format
+     * @return string Formatted number (e.g., "4.1M", "137K")
+     */
+    private function format_large_number(int $number): string {
+        if ($number >= 1000000000) {
+            return round($number / 1000000000, 1) . 'B';
+        } elseif ($number >= 1000000) {
+            return round($number / 1000000, 1) . 'M';
+        } elseif ($number >= 1000) {
+            return round($number / 1000, 1) . 'K';
+        }
+        return (string)$number;
     }
 }
 
@@ -2759,7 +2806,10 @@ class MicroChaos_Commands {
         $completed = 0;
         $current_ramp = $rampup ? 1 : $burst; // Start ramp-up at 1 concurrent request if enabled
         $endpoint_index = 0; // For serial rotation
-        
+
+        // Capture precise test start timestamp for execution metrics
+        $test_start_timestamp = microtime(true);
+
         // Set up duration-based testing
         $start_time = time();
         $end_time = $duration ? $start_time + ($duration * 60) : null;
@@ -2886,6 +2936,30 @@ class MicroChaos_Commands {
             }
         }
 
+        // Capture end timestamp and calculate execution metrics
+        $test_end_timestamp = microtime(true);
+        $test_duration = $test_end_timestamp - $test_start_timestamp;
+
+        // Build execution metrics
+        $execution_metrics = [
+            'started_at' => date('Y-m-d H:i:s', (int)$test_start_timestamp),
+            'started_at_iso' => date('c', (int)$test_start_timestamp),
+            'ended_at' => date('Y-m-d H:i:s', (int)$test_end_timestamp),
+            'ended_at_iso' => date('c', (int)$test_end_timestamp),
+            'duration_seconds' => round($test_duration, 2),
+            'duration_formatted' => $this->format_duration($test_duration),
+            'total_requests' => $completed,
+            'throughput_rps' => $test_duration > 0 ? round($completed / $test_duration, 2) : 0,
+        ];
+
+        // Add capacity projections
+        $rps = $execution_metrics['throughput_rps'];
+        $execution_metrics['capacity'] = [
+            'per_hour' => (int)($rps * 3600),
+            'per_day' => (int)($rps * 86400),
+            'per_month' => (int)($rps * 2592000),
+        ];
+
         // Handle baseline comparison if specified
         $compare_baseline = isset($assoc_args['compare-baseline']) ? $assoc_args['compare-baseline'] : null;
         $save_baseline = isset($assoc_args['save-baseline']) ? $assoc_args['save-baseline'] : null;
@@ -2938,7 +3012,7 @@ class MicroChaos_Commands {
         }
         
         // Display reports with appropriate thresholds
-        $reporting_engine->report_summary($perf_baseline, null, $use_thresholds);
+        $reporting_engine->report_summary($perf_baseline, null, $use_thresholds, $execution_metrics);
 
         // Report resource utilization if enabled
         if ($resource_logging) {
@@ -2975,7 +3049,7 @@ class MicroChaos_Commands {
                 $summary['cache'] = $cache_report;
             }
             
-            $integration_logger->log_test_complete($summary, $resource_summary);
+            $integration_logger->log_test_complete($summary, $resource_summary, $execution_metrics);
             \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
         }
 
@@ -2987,6 +3061,22 @@ class MicroChaos_Commands {
         } else {
             \WP_CLI::success("✅ Load test complete: $count requests fired.");
         }
+    }
+
+    /**
+     * Format duration in human-readable format
+     *
+     * @param float $seconds Duration in seconds
+     * @return string Formatted duration (e.g., "5m 15s" or "45s")
+     */
+    private function format_duration(float $seconds): string {
+        $minutes = floor($seconds / 60);
+        $secs = round($seconds % 60);
+
+        if ($minutes > 0) {
+            return "{$minutes}m {$secs}s";
+        }
+        return "{$secs}s";
     }
 }
 

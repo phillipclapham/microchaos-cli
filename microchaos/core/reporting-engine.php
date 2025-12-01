@@ -134,12 +134,13 @@ class MicroChaos_Reporting_Engine {
 
     /**
      * Report summary to CLI
-     * 
+     *
      * @param array|null $baseline Optional baseline data for comparison
      * @param array|null $provided_summary Optional pre-generated summary (useful for progressive tests)
      * @param string|null $threshold_profile Optional threshold profile to use for formatting
+     * @param array|null $execution_metrics Optional execution timing and throughput metrics
      */
-    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null): void {
+    public function report_summary(?array $baseline = null, ?array $provided_summary = null, ?string $threshold_profile = null, ?array $execution_metrics = null): void {
         $summary = $provided_summary ?: $this->generate_summary();
 
         if ($summary['count'] === 0) {
@@ -151,42 +152,66 @@ class MicroChaos_Reporting_Engine {
 
         if (class_exists('WP_CLI')) {
             $error_rate = $summary['error_rate'];
-            
-            \WP_CLI::log("📊 Load Test Summary:");
-            \WP_CLI::log("   Total Requests: {$summary['count']}");
+
+            \WP_CLI::log("📊 Load Test Summary");
+            \WP_CLI::log("   ═══════════════════════════════════════════════════");
+
+            // Test Execution Metrics section
+            if ($execution_metrics) {
+                \WP_CLI::log("   Test Execution:");
+                \WP_CLI::log("     Started:    {$execution_metrics['started_at']}");
+                \WP_CLI::log("     Ended:      {$execution_metrics['ended_at']}");
+                \WP_CLI::log("     Duration:   {$execution_metrics['duration_seconds']}s ({$execution_metrics['duration_formatted']})");
+                \WP_CLI::log("     Requests:   {$execution_metrics['total_requests']}");
+                \WP_CLI::log("     Throughput: {$execution_metrics['throughput_rps']} req/s");
+
+                if (isset($execution_metrics['capacity'])) {
+                    \WP_CLI::log("");
+                    \WP_CLI::log("   Capacity Projection (at current throughput):");
+                    \WP_CLI::log("     Per hour:   " . number_format($execution_metrics['capacity']['per_hour']) . " requests");
+                    \WP_CLI::log("     Per day:    " . number_format($execution_metrics['capacity']['per_day']) . " requests");
+                    \WP_CLI::log("     Per month:  ~" . $this->format_large_number($execution_metrics['capacity']['per_month']) . " requests");
+                    \WP_CLI::log("     ⚠️  Assumes sustained throughput. Actual capacity depends on workers, RAM, cache hit rate.");
+                }
+                \WP_CLI::log("   ═══════════════════════════════════════════════════");
+                \WP_CLI::log("");
+            }
+
+            \WP_CLI::log("   Response Statistics:");
+            \WP_CLI::log("     Total Requests: {$summary['count']}");
             
             $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate', $threshold_profile);
-            \WP_CLI::log("   Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
+            \WP_CLI::log("     Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
             
             // Format with threshold colors
             $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time', $threshold_profile);
             $median_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['median'], 'response_time', $threshold_profile);
             $max_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['max'], 'response_time', $threshold_profile);
             
-            \WP_CLI::log("   Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
-            \WP_CLI::log("   Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
-            
+            \WP_CLI::log("     Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
+            \WP_CLI::log("     Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
+
             // Add comparison with baseline if provided
             if ($baseline && isset($baseline['timing'])) {
-                $avg_change = $baseline['timing']['avg'] > 0 
-                    ? (($summary['timing']['avg'] - $baseline['timing']['avg']) / $baseline['timing']['avg']) * 100 
+                $avg_change = $baseline['timing']['avg'] > 0
+                    ? (($summary['timing']['avg'] - $baseline['timing']['avg']) / $baseline['timing']['avg']) * 100
                     : 0;
                 $avg_change = round($avg_change, 1);
-                
-                $median_change = $baseline['timing']['median'] > 0 
-                    ? (($summary['timing']['median'] - $baseline['timing']['median']) / $baseline['timing']['median']) * 100 
+
+                $median_change = $baseline['timing']['median'] > 0
+                    ? (($summary['timing']['median'] - $baseline['timing']['median']) / $baseline['timing']['median']) * 100
                     : 0;
                 $median_change = round($median_change, 1);
-                
+
                 $change_indicator = $avg_change <= 0 ? '↓' : '↑';
                 $change_color = $avg_change <= 0 ? "\033[32m" : "\033[31m";
-                
-                \WP_CLI::log("   Comparison to Baseline:");
-                \WP_CLI::log("   - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
-                
+
+                \WP_CLI::log("     Comparison to Baseline:");
+                \WP_CLI::log("       - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
+
                 $change_indicator = $median_change <= 0 ? '↓' : '↑';
                 $change_color = $median_change <= 0 ? "\033[32m" : "\033[31m";
-                \WP_CLI::log("   - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
+                \WP_CLI::log("       - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
             }
             
             // Add response time distribution histogram
@@ -266,5 +291,22 @@ class MicroChaos_Reporting_Engine {
             default:
                 return false;
         }
+    }
+
+    /**
+     * Format large numbers in human-readable format (K, M, B)
+     *
+     * @param int $number Number to format
+     * @return string Formatted number (e.g., "4.1M", "137K")
+     */
+    private function format_large_number(int $number): string {
+        if ($number >= 1000000000) {
+            return round($number / 1000000000, 1) . 'B';
+        } elseif ($number >= 1000000) {
+            return round($number / 1000000, 1) . 'M';
+        } elseif ($number >= 1000) {
+            return round($number / 1000, 1) . 'K';
+        }
+        return (string)$number;
     }
 }
