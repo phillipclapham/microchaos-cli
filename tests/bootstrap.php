@@ -50,6 +50,29 @@ require_once MICROCHAOS_CORE_PATH . '/logging/null-logger.php';
 
 // Components under test
 require_once MICROCHAOS_CORE_PATH . '/thresholds.php';
+require_once MICROCHAOS_CORE_PATH . '/cache-analyzer.php';
+require_once MICROCHAOS_CORE_PATH . '/authentication-manager.php';
+
+/**
+ * WordPress Stubs - Classes
+ *
+ * Simple stub classes for WordPress types used by testable components.
+ */
+
+/**
+ * Stub for WP_Http_Cookie
+ *
+ * AuthManager's format_for_curl() expects objects with name/value properties.
+ */
+class WP_Http_Cookie {
+    public string $name;
+    public string $value;
+
+    public function __construct(string $name, string $value) {
+        $this->name = $name;
+        $this->value = $value;
+    }
+}
 
 /**
  * Initialize Test Logger
