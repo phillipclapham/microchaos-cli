@@ -111,42 +111,42 @@ class MicroChaos_Cache_Analyzer {
     public function report_summary($total_requests) {
         if (empty($this->cache_headers)) {
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("ℹ️ No cache headers detected.");
+                MicroChaos_Log::log("ℹ️ No cache headers detected.");
             }
             return;
         }
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("📦 Pressable Cache Header Summary:");
+            MicroChaos_Log::log("📦 Pressable Cache Header Summary:");
 
             // Output Edge Cache (x-ac) breakdown
             if (isset($this->cache_headers['x-ac'])) {
-                \WP_CLI::log("   🌐 Edge Cache (x-ac):");
+                MicroChaos_Log::log("   🌐 Edge Cache (x-ac):");
                 $total_x_ac = array_sum($this->cache_headers['x-ac']);
                 foreach ($this->cache_headers['x-ac'] as $value => $count) {
                     $percentage = round(($count / $total_x_ac) * 100, 1);
-                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                    MicroChaos_Log::log("     {$value}: {$count} ({$percentage}%)");
                 }
             }
 
             // Output Batcache (x-nananana) breakdown
             if (isset($this->cache_headers['x-nananana'])) {
-                \WP_CLI::log("   🦇 Batcache (x-nananana):");
+                MicroChaos_Log::log("   🦇 Batcache (x-nananana):");
                 $total_batcache = array_sum($this->cache_headers['x-nananana']);
                 foreach ($this->cache_headers['x-nananana'] as $value => $count) {
                     $percentage = round(($count / $total_batcache) * 100, 1);
-                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                    MicroChaos_Log::log("     {$value}: {$count} ({$percentage}%)");
                 }
             }
 
             // Output other cache headers if present
             foreach (['x-cache', 'age', 'x-cache-hits'] as $header) {
                 if (isset($this->cache_headers[$header])) {
-                    \WP_CLI::log("   {$header}:");
+                    MicroChaos_Log::log("   {$header}:");
                     $total_header = array_sum($this->cache_headers[$header]);
                     foreach ($this->cache_headers[$header] as $value => $count) {
                         $percentage = round(($count / $total_header) * 100, 1);
-                        \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                        MicroChaos_Log::log("     {$value}: {$count} ({$percentage}%)");
                     }
                 }
             }
@@ -161,7 +161,7 @@ class MicroChaos_Cache_Analyzer {
                 }
                 if ($age_count > 0) {
                     $avg_age = round($total_age / $age_count, 1);
-                    \WP_CLI::log("   ⏲ Average Cache Age: {$avg_age} seconds");
+                    MicroChaos_Log::log("   ⏲ Average Cache Age: {$avg_age} seconds");
                 }
             }
         }

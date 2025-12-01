@@ -160,7 +160,7 @@ class MicroChaos_Request_Generator {
                 if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                     $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
                 }
-                \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
+                MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
             }
 
             $results[] = [
@@ -250,7 +250,7 @@ class MicroChaos_Request_Generator {
             if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                 $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
             }
-            \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
+            MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
         }
 
         // Return result for reporting

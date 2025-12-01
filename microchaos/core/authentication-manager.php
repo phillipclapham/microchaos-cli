@@ -37,7 +37,7 @@ class MicroChaos_Authentication_Manager {
         wp_set_auth_cookie($user->ID);
         $cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
 
-        \WP_CLI::log("🔐 Authenticated as {$user->user_login}");
+        MicroChaos_Log::log("🔐 Authenticated as {$user->user_login}");
 
         return $cookies;
     }
@@ -54,7 +54,7 @@ class MicroChaos_Authentication_Manager {
         foreach ($emails as $email) {
             $user = get_user_by('email', $email);
             if (!$user) {
-                \WP_CLI::warning("User with email {$email} not found. Skipping.");
+                MicroChaos_Log::warning("User with email {$email} not found. Skipping.");
                 continue;
             }
 
@@ -63,7 +63,7 @@ class MicroChaos_Authentication_Manager {
             $session_cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
             $auth_sessions[] = $session_cookies;
 
-            \WP_CLI::log("🔐 Added session for {$user->user_login}");
+            MicroChaos_Log::log("🔐 Added session for {$user->user_login}");
         }
 
         return $auth_sessions;

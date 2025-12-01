@@ -210,9 +210,9 @@ class MicroChaos_Commands {
 
         // Final success message
         if ($result['run_by_duration']) {
-            \WP_CLI::success("✅ Load test complete: {$result['completed']} requests fired over {$result['actual_minutes']} minutes.");
+            MicroChaos_Log::success("✅ Load test complete: {$result['completed']} requests fired over {$result['actual_minutes']} minutes.");
         } else {
-            \WP_CLI::success("✅ Load test complete: {$result['count']} requests fired.");
+            MicroChaos_Log::success("✅ Load test complete: {$result['count']} requests fired.");
         }
     }
 

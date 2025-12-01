@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-12-01T17:44:14.438Z
+ * Generated on: 2025-12-01T18:45:47.010Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -50,6 +50,53 @@ class MicroChaos_Constants {
     const HTTP_SERVER_ERROR = 500;
 }
 
+interface MicroChaos_Logger_Interface {
+
+    /**
+     * Log a standard message
+     *
+     * @param string $message The message to log
+     * @return void
+     */
+    public function log(string $message): void;
+
+    /**
+     * Log a success message
+     *
+     * @param string $message The success message
+     * @return void
+     */
+    public function success(string $message): void;
+
+    /**
+     * Log a warning message
+     *
+     * @param string $message The warning message
+     * @return void
+     */
+    public function warning(string $message): void;
+
+    /**
+     * Log an error message
+     *
+     * Note: Implementations may exit/throw after logging.
+     * - WP_CLI_Logger: Calls \WP_CLI::error() which exits
+     * - Null_Logger: Throws RuntimeException for test assertions
+     *
+     * @param string $message The error message
+     * @return void
+     */
+    public function error(string $message): void;
+
+    /**
+     * Log a debug message (only visible with --debug flag in WP-CLI)
+     *
+     * @param string $message The debug message
+     * @return void
+     */
+    public function debug(string $message): void;
+}
+
 interface MicroChaos_Baseline_Storage {
     /**
      * Save baseline data with a given key
@@ -84,6 +131,173 @@ interface MicroChaos_Baseline_Storage {
      * @return bool Success status
      */
     public function delete(string $key): bool;
+}
+
+class MicroChaos_Log {
+
+    /**
+     * The logger instance
+     *
+     * @var MicroChaos_Logger_Interface|null
+     */
+    private static ?MicroChaos_Logger_Interface $logger = null;
+
+    /**
+     * Set the logger implementation
+     *
+     * @param MicroChaos_Logger_Interface $logger The logger to use
+     * @return void
+     */
+    public static function set_logger(MicroChaos_Logger_Interface $logger): void {
+        self::$logger = $logger;
+    }
+
+    /**
+     * Get the current logger implementation
+     *
+     * @return MicroChaos_Logger_Interface|null
+     */
+    public static function get_logger(): ?MicroChaos_Logger_Interface {
+        return self::$logger;
+    }
+
+    /**
+     * Check if a logger is configured
+     *
+     * @return bool
+     */
+    public static function has_logger(): bool {
+        return self::$logger !== null;
+    }
+
+    /**
+     * Log a standard message
+     *
+     * @param string $message The message to log
+     * @return void
+     */
+    public static function log(string $message): void {
+        if (self::$logger !== null) {
+            self::$logger->log($message);
+        }
+    }
+
+    /**
+     * Log a success message
+     *
+     * @param string $message The success message
+     * @return void
+     */
+    public static function success(string $message): void {
+        if (self::$logger !== null) {
+            self::$logger->success($message);
+        }
+    }
+
+    /**
+     * Log a warning message
+     *
+     * @param string $message The warning message
+     * @return void
+     */
+    public static function warning(string $message): void {
+        if (self::$logger !== null) {
+            self::$logger->warning($message);
+        }
+    }
+
+    /**
+     * Log an error message
+     *
+     * Note: The underlying logger may exit or throw after logging.
+     *
+     * @param string $message The error message
+     * @return void
+     */
+    public static function error(string $message): void {
+        if (self::$logger !== null) {
+            self::$logger->error($message);
+        }
+    }
+
+    /**
+     * Log a debug message
+     *
+     * @param string $message The debug message
+     * @return void
+     */
+    public static function debug(string $message): void {
+        if (self::$logger !== null) {
+            self::$logger->debug($message);
+        }
+    }
+
+    /**
+     * Reset the logger (primarily for testing)
+     *
+     * @return void
+     */
+    public static function reset(): void {
+        self::$logger = null;
+    }
+}
+
+class MicroChaos_WP_CLI_Logger implements MicroChaos_Logger_Interface {
+
+    /**
+     * Log a standard message
+     *
+     * @param string $message The message to log
+     * @return void
+     */
+    public function log(string $message): void {
+        \WP_CLI::log($message);
+    }
+
+    /**
+     * Log a success message (green)
+     *
+     * @param string $message The success message
+     * @return void
+     */
+    public function success(string $message): void {
+        \WP_CLI::success($message);
+    }
+
+    /**
+     * Log a warning message (yellow)
+     *
+     * @param string $message The warning message
+     * @return void
+     */
+    public function warning(string $message): void {
+        \WP_CLI::warning($message);
+    }
+
+    /**
+     * Log an error message (red) and exit
+     *
+     * Note: This method calls \WP_CLI::error() which exits the process.
+     * This maintains backward compatibility with existing code that
+     * relies on error() not returning.
+     *
+     * @param string $message The error message
+     * @return void
+     */
+    public function error(string $message): void {
+        \WP_CLI::error($message);
+        // Note: Code after this line is unreachable - WP_CLI::error() exits
+    }
+
+    /**
+     * Log a debug message (only visible with --debug flag)
+     *
+     * @param string $message The debug message
+     * @return void
+     */
+    public function debug(string $message): void {
+        \WP_CLI::debug($message);
+    }
 }
 
 class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Storage {
@@ -308,7 +522,7 @@ class MicroChaos_Authentication_Manager {
         wp_set_auth_cookie($user->ID);
         $cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
 
-        \WP_CLI::log("🔐 Authenticated as {$user->user_login}");
+        MicroChaos_Log::log("🔐 Authenticated as {$user->user_login}");
 
         return $cookies;
     }
@@ -325,7 +539,7 @@ class MicroChaos_Authentication_Manager {
         foreach ($emails as $email) {
             $user = get_user_by('email', $email);
             if (!$user) {
-                \WP_CLI::warning("User with email {$email} not found. Skipping.");
+                MicroChaos_Log::warning("User with email {$email} not found. Skipping.");
                 continue;
             }
 
@@ -334,7 +548,7 @@ class MicroChaos_Authentication_Manager {
             $session_cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
             $auth_sessions[] = $session_cookies;
 
-            \WP_CLI::log("🔐 Added session for {$user->user_login}");
+            MicroChaos_Log::log("🔐 Added session for {$user->user_login}");
         }
 
         return $auth_sessions;
@@ -1120,7 +1334,7 @@ class MicroChaos_Request_Generator {
                 if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                     $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
                 }
-                \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
+                MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
             }
 
             $results[] = [
@@ -1210,7 +1424,7 @@ class MicroChaos_Request_Generator {
             if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                 $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
             }
-            \WP_CLI::log("-> {$code} in {$duration}s{$cache_display}");
+            MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
         }
 
         // Return result for reporting
@@ -1443,7 +1657,7 @@ class MicroChaos_Resource_Monitor {
         $system_time = round($ru['ru_stime.tv_sec'] + $ru['ru_stime.tv_usec'] / 1e6, 2);
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("🔍 Resources: Memory Usage: {$memory_usage} MB, Peak Memory: {$peak_memory} MB, CPU Time: User {$user_time}s, System {$system_time}s");
+            MicroChaos_Log::log("🔍 Resources: Memory Usage: {$memory_usage} MB, Peak Memory: {$peak_memory} MB, CPU Time: User {$user_time}s, System {$system_time}s");
         }
 
         $result = [
@@ -1558,11 +1772,11 @@ class MicroChaos_Resource_Monitor {
             $avg_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['avg'], 'memory_usage', $threshold_profile);
             $max_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['max'], 'memory_usage', $threshold_profile);
             
-            \WP_CLI::log("📊 Resource Utilization Summary:");
-            \WP_CLI::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");
-            \WP_CLI::log("   Peak Memory: Avg: {$avg_peak_formatted}, Median: {$summary['peak_memory']['median']} MB, Min: {$summary['peak_memory']['min']} MB, Max: {$max_peak_formatted}");
-            \WP_CLI::log("   CPU Time (User): Avg: {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s, Min: {$summary['user_time']['min']}s, Max: {$summary['user_time']['max']}s");
-            \WP_CLI::log("   CPU Time (System): Avg: {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s, Min: {$summary['system_time']['min']}s, Max: {$summary['system_time']['max']}s");
+            MicroChaos_Log::log("📊 Resource Utilization Summary:");
+            MicroChaos_Log::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");
+            MicroChaos_Log::log("   Peak Memory: Avg: {$avg_peak_formatted}, Median: {$summary['peak_memory']['median']} MB, Min: {$summary['peak_memory']['min']} MB, Max: {$max_peak_formatted}");
+            MicroChaos_Log::log("   CPU Time (User): Avg: {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s, Min: {$summary['user_time']['min']}s, Max: {$summary['user_time']['max']}s");
+            MicroChaos_Log::log("   CPU Time (System): Avg: {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s, Min: {$summary['system_time']['min']}s, Max: {$summary['system_time']['max']}s");
             
             // Add comparison with baseline if provided
             if ($baseline) {
@@ -1575,8 +1789,8 @@ class MicroChaos_Resource_Monitor {
                     $change_indicator = $mem_avg_change <= 0 ? '↓' : '↑';
                     $change_color = $mem_avg_change <= 0 ? "\033[32m" : "\033[31m";
                     
-                    \WP_CLI::log("   Comparison to Baseline:");
-                    \WP_CLI::log("   - Avg Memory: {$change_color}{$change_indicator}{$mem_avg_change}%\033[0m vs {$baseline['memory']['avg']} MB");
+                    MicroChaos_Log::log("   Comparison to Baseline:");
+                    MicroChaos_Log::log("   - Avg Memory: {$change_color}{$change_indicator}{$mem_avg_change}%\033[0m vs {$baseline['memory']['avg']} MB");
                     
                     $mem_max_change = $baseline['memory']['max'] > 0 
                         ? (($summary['memory']['max'] - $baseline['memory']['max']) / $baseline['memory']['max']) * 100 
@@ -1585,7 +1799,7 @@ class MicroChaos_Resource_Monitor {
                     
                     $change_indicator = $mem_max_change <= 0 ? '↓' : '↑';
                     $change_color = $mem_max_change <= 0 ? "\033[32m" : "\033[31m";
-                    \WP_CLI::log("   - Max Memory: {$change_color}{$change_indicator}{$mem_max_change}%\033[0m vs {$baseline['memory']['max']} MB");
+                    MicroChaos_Log::log("   - Max Memory: {$change_color}{$change_indicator}{$mem_max_change}%\033[0m vs {$baseline['memory']['max']} MB");
                 }
             }
             
@@ -1599,7 +1813,7 @@ class MicroChaos_Resource_Monitor {
                 ];
                 
                 $chart = MicroChaos_Thresholds::generate_chart($chart_data, "Memory Usage (MB)");
-                \WP_CLI::log($chart);
+                MicroChaos_Log::log($chart);
             }
         }
     }
@@ -1900,7 +2114,7 @@ class MicroChaos_Resource_Monitor {
     public function report_trends(): void {
         if (!$this->track_trends || count($this->resource_results) < 3) {
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("📈 Resource Trend Analysis: Insufficient data for trend analysis.");
+                MicroChaos_Log::log("📈 Resource Trend Analysis: Insufficient data for trend analysis.");
             }
             return;
         }
@@ -1908,31 +2122,31 @@ class MicroChaos_Resource_Monitor {
         $trends = $this->analyze_trends();
         
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("\n📈 Resource Trend Analysis:");
-            \WP_CLI::log("   Data Points: {$trends['data_points']} over {$trends['time_span']} seconds");
+            MicroChaos_Log::log("\n📈 Resource Trend Analysis:");
+            MicroChaos_Log::log("   Data Points: {$trends['data_points']} over {$trends['time_span']} seconds");
             
             // Memory usage trends
             $memory_change = $trends['memory_usage']['change_percent'];
             $memory_direction = $memory_change > 0 ? '↑' : '↓';
             $memory_color = $memory_change > 20 ? "\033[31m" : ($memory_change > 5 ? "\033[33m" : "\033[32m");
-            \WP_CLI::log("   Memory Usage: {$memory_color}{$memory_direction}{$memory_change}%\033[0m over test duration");
-            \WP_CLI::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['memory_usage']['pattern'])));
+            MicroChaos_Log::log("   Memory Usage: {$memory_color}{$memory_direction}{$memory_change}%\033[0m over test duration");
+            MicroChaos_Log::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['memory_usage']['pattern'])));
             
             // Peak memory trends
             $peak_change = $trends['peak_memory']['change_percent'];
             $peak_direction = $peak_change > 0 ? '↑' : '↓';
             $peak_color = $peak_change > 20 ? "\033[31m" : ($peak_change > 5 ? "\033[33m" : "\033[32m");
-            \WP_CLI::log("   Peak Memory: {$peak_color}{$peak_direction}{$peak_change}%\033[0m over test duration");
-            \WP_CLI::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['peak_memory']['pattern'])));
+            MicroChaos_Log::log("   Peak Memory: {$peak_color}{$peak_direction}{$peak_change}%\033[0m over test duration");
+            MicroChaos_Log::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['peak_memory']['pattern'])));
             
             // Warning about unbounded growth if detected
             if ($trends['potentially_unbounded']) {
-                \WP_CLI::warning("⚠️ Potential memory leak detected! Resource usage shows continuous growth pattern.");
+                MicroChaos_Log::warning("⚠️ Potential memory leak detected! Resource usage shows continuous growth pattern.");
             }
             
             // Generate visual trend charts
             $charts = $this->generate_trend_charts();
-            \WP_CLI::log($charts);
+            MicroChaos_Log::log($charts);
         }
     }
 }
@@ -2035,42 +2249,42 @@ class MicroChaos_Cache_Analyzer {
     public function report_summary($total_requests) {
         if (empty($this->cache_headers)) {
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("ℹ️ No cache headers detected.");
+                MicroChaos_Log::log("ℹ️ No cache headers detected.");
             }
             return;
         }
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("📦 Pressable Cache Header Summary:");
+            MicroChaos_Log::log("📦 Pressable Cache Header Summary:");
 
             // Output Edge Cache (x-ac) breakdown
             if (isset($this->cache_headers['x-ac'])) {
-                \WP_CLI::log("   🌐 Edge Cache (x-ac):");
+                MicroChaos_Log::log("   🌐 Edge Cache (x-ac):");
                 $total_x_ac = array_sum($this->cache_headers['x-ac']);
                 foreach ($this->cache_headers['x-ac'] as $value => $count) {
                     $percentage = round(($count / $total_x_ac) * 100, 1);
-                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                    MicroChaos_Log::log("     {$value}: {$count} ({$percentage}%)");
                 }
             }
 
             // Output Batcache (x-nananana) breakdown
             if (isset($this->cache_headers['x-nananana'])) {
-                \WP_CLI::log("   🦇 Batcache (x-nananana):");
+                MicroChaos_Log::log("   🦇 Batcache (x-nananana):");
                 $total_batcache = array_sum($this->cache_headers['x-nananana']);
                 foreach ($this->cache_headers['x-nananana'] as $value => $count) {
                     $percentage = round(($count / $total_batcache) * 100, 1);
-                    \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                    MicroChaos_Log::log("     {$value}: {$count} ({$percentage}%)");
                 }
             }
 
             // Output other cache headers if present
             foreach (['x-cache', 'age', 'x-cache-hits'] as $header) {
                 if (isset($this->cache_headers[$header])) {
-                    \WP_CLI::log("   {$header}:");
+                    MicroChaos_Log::log("   {$header}:");
                     $total_header = array_sum($this->cache_headers[$header]);
                     foreach ($this->cache_headers[$header] as $value => $count) {
                         $percentage = round(($count / $total_header) * 100, 1);
-                        \WP_CLI::log("     {$value}: {$count} ({$percentage}%)");
+                        MicroChaos_Log::log("     {$value}: {$count} ({$percentage}%)");
                     }
                 }
             }
@@ -2085,7 +2299,7 @@ class MicroChaos_Cache_Analyzer {
                 }
                 if ($age_count > 0) {
                     $avg_age = round($total_age / $age_count, 1);
-                    \WP_CLI::log("   ⏲ Average Cache Age: {$avg_age} seconds");
+                    MicroChaos_Log::log("   ⏲ Average Cache Age: {$avg_age} seconds");
                 }
             }
         }
@@ -2224,7 +2438,7 @@ class MicroChaos_Reporting_Engine {
 
         if ($summary['count'] === 0) {
             if (class_exists('WP_CLI')) {
-                \WP_CLI::warning("No results to summarize.");
+                MicroChaos_Log::warning("No results to summarize.");
             }
             return;
         }
@@ -2232,43 +2446,43 @@ class MicroChaos_Reporting_Engine {
         if (class_exists('WP_CLI')) {
             $error_rate = $summary['error_rate'];
 
-            \WP_CLI::log("📊 Load Test Summary");
-            \WP_CLI::log("   ═══════════════════════════════════════════════════");
+            MicroChaos_Log::log("📊 Load Test Summary");
+            MicroChaos_Log::log("   ═══════════════════════════════════════════════════");
 
             // Test Execution Metrics section
             if ($execution_metrics) {
-                \WP_CLI::log("   Test Execution:");
-                \WP_CLI::log("     Started:    {$execution_metrics['started_at']}");
-                \WP_CLI::log("     Ended:      {$execution_metrics['ended_at']}");
-                \WP_CLI::log("     Duration:   {$execution_metrics['duration_seconds']}s ({$execution_metrics['duration_formatted']})");
-                \WP_CLI::log("     Requests:   {$execution_metrics['total_requests']}");
-                \WP_CLI::log("     Throughput: {$execution_metrics['throughput_rps']} req/s");
+                MicroChaos_Log::log("   Test Execution:");
+                MicroChaos_Log::log("     Started:    {$execution_metrics['started_at']}");
+                MicroChaos_Log::log("     Ended:      {$execution_metrics['ended_at']}");
+                MicroChaos_Log::log("     Duration:   {$execution_metrics['duration_seconds']}s ({$execution_metrics['duration_formatted']})");
+                MicroChaos_Log::log("     Requests:   {$execution_metrics['total_requests']}");
+                MicroChaos_Log::log("     Throughput: {$execution_metrics['throughput_rps']} req/s");
 
                 if (isset($execution_metrics['capacity'])) {
-                    \WP_CLI::log("");
-                    \WP_CLI::log("   Capacity Projection (at current throughput):");
-                    \WP_CLI::log("     Per hour:   " . number_format($execution_metrics['capacity']['per_hour']) . " requests");
-                    \WP_CLI::log("     Per day:    " . number_format($execution_metrics['capacity']['per_day']) . " requests");
-                    \WP_CLI::log("     Per month:  ~" . $this->format_large_number($execution_metrics['capacity']['per_month']) . " requests");
-                    \WP_CLI::log("     ⚠️  Assumes sustained throughput. Actual capacity depends on workers, RAM, cache hit rate.");
+                    MicroChaos_Log::log("");
+                    MicroChaos_Log::log("   Capacity Projection (at current throughput):");
+                    MicroChaos_Log::log("     Per hour:   " . number_format($execution_metrics['capacity']['per_hour']) . " requests");
+                    MicroChaos_Log::log("     Per day:    " . number_format($execution_metrics['capacity']['per_day']) . " requests");
+                    MicroChaos_Log::log("     Per month:  ~" . $this->format_large_number($execution_metrics['capacity']['per_month']) . " requests");
+                    MicroChaos_Log::log("     ⚠️  Assumes sustained throughput. Actual capacity depends on workers, RAM, cache hit rate.");
                 }
-                \WP_CLI::log("   ═══════════════════════════════════════════════════");
-                \WP_CLI::log("");
+                MicroChaos_Log::log("   ═══════════════════════════════════════════════════");
+                MicroChaos_Log::log("");
             }
 
-            \WP_CLI::log("   Response Statistics:");
-            \WP_CLI::log("     Total Requests: {$summary['count']}");
+            MicroChaos_Log::log("   Response Statistics:");
+            MicroChaos_Log::log("     Total Requests: {$summary['count']}");
             
             $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate', $threshold_profile);
-            \WP_CLI::log("     Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
+            MicroChaos_Log::log("     Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
             
             // Format with threshold colors
             $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time', $threshold_profile);
             $median_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['median'], 'response_time', $threshold_profile);
             $max_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['max'], 'response_time', $threshold_profile);
             
-            \WP_CLI::log("     Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
-            \WP_CLI::log("     Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
+            MicroChaos_Log::log("     Avg Time: {$avg_time_formatted} | Median: {$median_time_formatted}");
+            MicroChaos_Log::log("     Fastest: {$summary['timing']['min']}s | Slowest: {$max_time_formatted}");
 
             // Add comparison with baseline if provided
             if ($baseline && isset($baseline['timing'])) {
@@ -2285,19 +2499,19 @@ class MicroChaos_Reporting_Engine {
                 $change_indicator = $avg_change <= 0 ? '↓' : '↑';
                 $change_color = $avg_change <= 0 ? "\033[32m" : "\033[31m";
 
-                \WP_CLI::log("     Comparison to Baseline:");
-                \WP_CLI::log("       - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
+                MicroChaos_Log::log("     Comparison to Baseline:");
+                MicroChaos_Log::log("       - Avg: {$change_color}{$change_indicator}{$avg_change}%\033[0m vs {$baseline['timing']['avg']}s");
 
                 $change_indicator = $median_change <= 0 ? '↓' : '↑';
                 $change_color = $median_change <= 0 ? "\033[32m" : "\033[31m";
-                \WP_CLI::log("       - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
+                MicroChaos_Log::log("       - Median: {$change_color}{$change_indicator}{$median_change}%\033[0m vs {$baseline['timing']['median']}s");
             }
             
             // Add response time distribution histogram
             if (count($this->results) >= 10) {
                 $times = array_column($this->results, 'time');
                 $histogram = MicroChaos_Thresholds::generate_histogram($times);
-                \WP_CLI::log($histogram);
+                MicroChaos_Log::log($histogram);
             }
         }
     }
@@ -2463,9 +2677,9 @@ class MicroChaos_LoadTest_Orchestrator {
         if ($config['use_thresholds']) {
             $loaded = MicroChaos_Thresholds::load_thresholds($config['use_thresholds']);
             if ($loaded) {
-                \WP_CLI::log("🎯 Using custom thresholds from profile: {$config['use_thresholds']}");
+                MicroChaos_Log::log("🎯 Using custom thresholds from profile: {$config['use_thresholds']}");
             } else {
-                \WP_CLI::warning("⚠️ Could not load thresholds profile: {$config['use_thresholds']}. Using defaults.");
+                MicroChaos_Log::warning("⚠️ Could not load thresholds profile: {$config['use_thresholds']}. Using defaults.");
             }
         }
 
@@ -2496,7 +2710,7 @@ class MicroChaos_LoadTest_Orchestrator {
             if (file_exists($file_path)) {
                 $body = file_get_contents($file_path);
             } else {
-                \WP_CLI::error("Body file not found: $file_path");
+                MicroChaos_Log::error("Body file not found: $file_path");
             }
         }
 
@@ -2514,7 +2728,7 @@ class MicroChaos_LoadTest_Orchestrator {
             }
 
             $request_generator->set_custom_headers($headers);
-            \WP_CLI::log("📝 Added " . count($header_pairs) . " custom " .
+            MicroChaos_Log::log("📝 Added " . count($header_pairs) . " custom " .
                           (count($header_pairs) === 1 ? "header" : "headers"));
         }
 
@@ -2523,7 +2737,7 @@ class MicroChaos_LoadTest_Orchestrator {
 
         // Warm cache if specified
         if ($config['warm_cache']) {
-            \WP_CLI::log("🧤 Warming cache...");
+            MicroChaos_Log::log("🧤 Warming cache...");
             foreach ($endpoint_list as $endpoint_item) {
                 $request_generator->fire_request(
                     $endpoint_item['url'],
@@ -2532,7 +2746,7 @@ class MicroChaos_LoadTest_Orchestrator {
                     $config['method'],
                     $body
                 );
-                \WP_CLI::log("  Warmed {$endpoint_item['slug']}");
+                MicroChaos_Log::log("  Warmed {$endpoint_item['slug']}");
             }
         }
 
@@ -2597,7 +2811,7 @@ class MicroChaos_LoadTest_Orchestrator {
             if ($config['resource_logging']) {
                 $resource_monitor->save_baseline($config['save_baseline']);
             }
-            \WP_CLI::success("✅ Baseline '{$config['save_baseline']}' saved.");
+            MicroChaos_Log::success("✅ Baseline '{$config['save_baseline']}' saved.");
         }
 
         // Report cache headers if enabled
@@ -2615,7 +2829,7 @@ class MicroChaos_LoadTest_Orchestrator {
             }
 
             $integration_logger->log_test_complete($final_summary, $resource_summary, $execution_metrics);
-            \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
+            MicroChaos_Log::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
         }
 
         // Return result data for final success message
@@ -2647,17 +2861,17 @@ class MicroChaos_LoadTest_Orchestrator {
                         'url' => $url
                     ];
                 } else {
-                    \WP_CLI::warning("Invalid endpoint: $item. Skipping.");
+                    MicroChaos_Log::warning("Invalid endpoint: $item. Skipping.");
                 }
             }
 
             if (empty($endpoint_list)) {
-                \WP_CLI::error("No valid endpoints to test.");
+                MicroChaos_Log::error("No valid endpoints to test.");
             }
         } elseif ($config['endpoint']) {
             $url = $request_generator->resolve_endpoint($config['endpoint']);
             if (!$url) {
-                \WP_CLI::error("Invalid endpoint. Use 'home', 'shop', 'cart', 'checkout', or 'custom:/your/path'.");
+                MicroChaos_Log::error("Invalid endpoint. Use 'home', 'shop', 'cart', 'checkout', or 'custom:/your/path'.");
             }
             $endpoint_list[] = [
                 'slug' => $config['endpoint'],
@@ -2681,12 +2895,12 @@ class MicroChaos_LoadTest_Orchestrator {
             $emails = array_map('trim', explode(',', $config['multi_auth']));
             $cookies = MicroChaos_Authentication_Manager::authenticate_users($emails);
             if (empty($cookies)) {
-                \WP_CLI::warning("No valid multi-auth sessions. Continuing without authentication.");
+                MicroChaos_Log::warning("No valid multi-auth sessions. Continuing without authentication.");
             }
         } elseif ($config['auth_user']) {
             $cookies = MicroChaos_Authentication_Manager::authenticate_user($config['auth_user']);
             if ($cookies === null) {
-                \WP_CLI::error("User with email {$config['auth_user']} not found.");
+                MicroChaos_Log::error("User with email {$config['auth_user']} not found.");
             }
         }
 
@@ -2716,7 +2930,7 @@ class MicroChaos_LoadTest_Orchestrator {
                 $cookies = $custom_cookie_jar;
             }
 
-            \WP_CLI::log("🍪 Added " . count($cookie_pairs) . " custom " .
+            MicroChaos_Log::log("🍪 Added " . count($cookie_pairs) . " custom " .
                           (count($cookie_pairs) === 1 ? "cookie" : "cookies"));
         }
 
@@ -2731,37 +2945,37 @@ class MicroChaos_LoadTest_Orchestrator {
      * @param MicroChaos_Integration_Logger $integration_logger
      */
     private function log_test_start(array $config, array $endpoint_list, MicroChaos_Integration_Logger $integration_logger): void {
-        \WP_CLI::log("🚀 MicroChaos Load Test Started");
+        MicroChaos_Log::log("🚀 MicroChaos Load Test Started");
 
         if (count($endpoint_list) === 1) {
-            \WP_CLI::log("-> URL: {$endpoint_list[0]['url']}");
+            MicroChaos_Log::log("-> URL: {$endpoint_list[0]['url']}");
         } else {
-            \WP_CLI::log("-> URLs: " . count($endpoint_list) . " endpoints (" .
+            MicroChaos_Log::log("-> URLs: " . count($endpoint_list) . " endpoints (" .
                           implode(', ', array_column($endpoint_list, 'slug')) . ") - Rotation mode: {$config['rotation_mode']}");
         }
 
-        \WP_CLI::log("-> Method: {$config['method']}");
+        MicroChaos_Log::log("-> Method: {$config['method']}");
 
         if ($config['body']) {
             $body_preview = strlen($config['body']) > 50
                 ? substr($config['body'], 0, 47) . '...'
                 : $config['body'];
-            \WP_CLI::log("-> Body: $body_preview");
+            MicroChaos_Log::log("-> Body: $body_preview");
         }
 
         if ($config['duration']) {
             $duration_word = $config['duration'] == 1 ? "minute" : "minutes";
-            \WP_CLI::log("-> Duration: {$config['duration']} $duration_word | Burst: {$config['burst']} | Delay: {$config['delay']}s");
+            MicroChaos_Log::log("-> Duration: {$config['duration']} $duration_word | Burst: {$config['burst']} | Delay: {$config['delay']}s");
         } else {
-            \WP_CLI::log("-> Total: {$config['count']} | Burst: {$config['burst']} | Delay: {$config['delay']}s");
+            MicroChaos_Log::log("-> Total: {$config['count']} | Burst: {$config['burst']} | Delay: {$config['delay']}s");
         }
 
         if ($config['collect_cache_headers']) {
-            \WP_CLI::log("-> Cache header tracking enabled");
+            MicroChaos_Log::log("-> Cache header tracking enabled");
         }
 
         if ($config['monitoring_integration']) {
-            \WP_CLI::log("-> 🔌 Monitoring integration enabled (test ID: {$integration_logger->test_id})");
+            MicroChaos_Log::log("-> 🔌 Monitoring integration enabled (test ID: {$integration_logger->test_id})");
 
             $log_config = [
                 'endpoint' => $config['endpoint'],
@@ -2848,11 +3062,11 @@ class MicroChaos_LoadTest_Orchestrator {
                 ? $current_ramp
                 : min($current_ramp, $config['burst'], $config['count'] - $completed);
 
-            \WP_CLI::log("⚡ Burst of $current_burst requests");
+            MicroChaos_Log::log("⚡ Burst of $current_burst requests");
 
             // Flush cache if specified
             if ($config['flush_between']) {
-                \WP_CLI::log("♻️ Flushing cache before burst...");
+                MicroChaos_Log::log("♻️ Flushing cache before burst...");
                 wp_cache_flush();
             }
 
@@ -2922,7 +3136,7 @@ class MicroChaos_LoadTest_Orchestrator {
                 $remaining_seconds = $elapsed_seconds % 60;
                 $time_display = $elapsed_minutes . "m " . $remaining_seconds . "s";
                 $percentage = min(round(($elapsed_seconds / ($config['duration'] * 60)) * 100), 100);
-                \WP_CLI::log("⏲ Time elapsed: $time_display ($percentage% complete, $completed requests sent)");
+                MicroChaos_Log::log("⏲ Time elapsed: $time_display ($percentage% complete, $completed requests sent)");
             }
 
             // Delay between bursts
@@ -2930,7 +3144,7 @@ class MicroChaos_LoadTest_Orchestrator {
 
             if ($should_delay) {
                 $random_delay = rand($config['delay'] * 50, $config['delay'] * 150) / 100;
-                \WP_CLI::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
+                MicroChaos_Log::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
                 sleep((int)$random_delay);
             }
         }
@@ -2989,7 +3203,7 @@ class MicroChaos_LoadTest_Orchestrator {
      * @return string Profile name to use
      */
     private function calibrate_thresholds(array $summary, ?array $resource_summary, string $profile): string {
-        \WP_CLI::log("🔍 Auto-calibrating thresholds based on this test run...");
+        MicroChaos_Log::log("🔍 Auto-calibrating thresholds based on this test run...");
 
         $calibration_data = $summary;
         if ($resource_summary) {
@@ -2999,14 +3213,14 @@ class MicroChaos_LoadTest_Orchestrator {
 
         $thresholds = MicroChaos_Thresholds::calibrate_thresholds($calibration_data, $profile);
 
-        \WP_CLI::log("✅ Custom thresholds calibrated and saved as profile: {$profile}");
-        \WP_CLI::log("   Response time: Good <= {$thresholds['response_time']['good']}s | Warning <= {$thresholds['response_time']['warn']}s | Critical > {$thresholds['response_time']['critical']}s");
+        MicroChaos_Log::log("✅ Custom thresholds calibrated and saved as profile: {$profile}");
+        MicroChaos_Log::log("   Response time: Good <= {$thresholds['response_time']['good']}s | Warning <= {$thresholds['response_time']['warn']}s | Critical > {$thresholds['response_time']['critical']}s");
 
         if (isset($thresholds['memory_usage'])) {
-            \WP_CLI::log("   Memory usage: Good <= {$thresholds['memory_usage']['good']}% | Warning <= {$thresholds['memory_usage']['warn']}% | Critical > {$thresholds['memory_usage']['critical']}%");
+            MicroChaos_Log::log("   Memory usage: Good <= {$thresholds['memory_usage']['good']}% | Warning <= {$thresholds['memory_usage']['warn']}% | Critical > {$thresholds['memory_usage']['critical']}%");
         }
 
-        \WP_CLI::log("   Error rate: Good <= {$thresholds['error_rate']['good']}% | Warning <= {$thresholds['error_rate']['warn']}% | Critical > {$thresholds['error_rate']['critical']}%");
+        MicroChaos_Log::log("   Error rate: Good <= {$thresholds['error_rate']['good']}% | Warning <= {$thresholds['error_rate']['warn']}% | Critical > {$thresholds['error_rate']['critical']}%");
 
         return $profile;
     }
@@ -3224,9 +3438,9 @@ class MicroChaos_Commands {
 
         // Final success message
         if ($result['run_by_duration']) {
-            \WP_CLI::success("✅ Load test complete: {$result['completed']} requests fired over {$result['actual_minutes']} minutes.");
+            MicroChaos_Log::success("✅ Load test complete: {$result['completed']} requests fired over {$result['actual_minutes']} minutes.");
         } else {
-            \WP_CLI::success("✅ Load test complete: {$result['count']} requests fired.");
+            MicroChaos_Log::success("✅ Load test complete: {$result['count']} requests fired.");
         }
     }
 
@@ -3277,6 +3491,9 @@ class MicroChaos_Commands {
         ];
     }
 }
+
+    // Initialize the WP-CLI logger
+    MicroChaos_Log::set_logger(new MicroChaos_WP_CLI_Logger());
 
     // Register the MicroChaos WP-CLI command
     WP_CLI::add_command('microchaos', 'MicroChaos_Commands');

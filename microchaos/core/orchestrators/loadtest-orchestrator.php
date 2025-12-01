@@ -90,9 +90,9 @@ class MicroChaos_LoadTest_Orchestrator {
         if ($config['use_thresholds']) {
             $loaded = MicroChaos_Thresholds::load_thresholds($config['use_thresholds']);
             if ($loaded) {
-                \WP_CLI::log("🎯 Using custom thresholds from profile: {$config['use_thresholds']}");
+                MicroChaos_Log::log("🎯 Using custom thresholds from profile: {$config['use_thresholds']}");
             } else {
-                \WP_CLI::warning("⚠️ Could not load thresholds profile: {$config['use_thresholds']}. Using defaults.");
+                MicroChaos_Log::warning("⚠️ Could not load thresholds profile: {$config['use_thresholds']}. Using defaults.");
             }
         }
 
@@ -123,7 +123,7 @@ class MicroChaos_LoadTest_Orchestrator {
             if (file_exists($file_path)) {
                 $body = file_get_contents($file_path);
             } else {
-                \WP_CLI::error("Body file not found: $file_path");
+                MicroChaos_Log::error("Body file not found: $file_path");
             }
         }
 
@@ -141,7 +141,7 @@ class MicroChaos_LoadTest_Orchestrator {
             }
 
             $request_generator->set_custom_headers($headers);
-            \WP_CLI::log("📝 Added " . count($header_pairs) . " custom " .
+            MicroChaos_Log::log("📝 Added " . count($header_pairs) . " custom " .
                           (count($header_pairs) === 1 ? "header" : "headers"));
         }
 
@@ -150,7 +150,7 @@ class MicroChaos_LoadTest_Orchestrator {
 
         // Warm cache if specified
         if ($config['warm_cache']) {
-            \WP_CLI::log("🧤 Warming cache...");
+            MicroChaos_Log::log("🧤 Warming cache...");
             foreach ($endpoint_list as $endpoint_item) {
                 $request_generator->fire_request(
                     $endpoint_item['url'],
@@ -159,7 +159,7 @@ class MicroChaos_LoadTest_Orchestrator {
                     $config['method'],
                     $body
                 );
-                \WP_CLI::log("  Warmed {$endpoint_item['slug']}");
+                MicroChaos_Log::log("  Warmed {$endpoint_item['slug']}");
             }
         }
 
@@ -224,7 +224,7 @@ class MicroChaos_LoadTest_Orchestrator {
             if ($config['resource_logging']) {
                 $resource_monitor->save_baseline($config['save_baseline']);
             }
-            \WP_CLI::success("✅ Baseline '{$config['save_baseline']}' saved.");
+            MicroChaos_Log::success("✅ Baseline '{$config['save_baseline']}' saved.");
         }
 
         // Report cache headers if enabled
@@ -242,7 +242,7 @@ class MicroChaos_LoadTest_Orchestrator {
             }
 
             $integration_logger->log_test_complete($final_summary, $resource_summary, $execution_metrics);
-            \WP_CLI::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
+            MicroChaos_Log::log("🔌 Monitoring data logged to PHP error log (test ID: {$integration_logger->test_id})");
         }
 
         // Return result data for final success message
@@ -274,17 +274,17 @@ class MicroChaos_LoadTest_Orchestrator {
                         'url' => $url
                     ];
                 } else {
-                    \WP_CLI::warning("Invalid endpoint: $item. Skipping.");
+                    MicroChaos_Log::warning("Invalid endpoint: $item. Skipping.");
                 }
             }
 
             if (empty($endpoint_list)) {
-                \WP_CLI::error("No valid endpoints to test.");
+                MicroChaos_Log::error("No valid endpoints to test.");
             }
         } elseif ($config['endpoint']) {
             $url = $request_generator->resolve_endpoint($config['endpoint']);
             if (!$url) {
-                \WP_CLI::error("Invalid endpoint. Use 'home', 'shop', 'cart', 'checkout', or 'custom:/your/path'.");
+                MicroChaos_Log::error("Invalid endpoint. Use 'home', 'shop', 'cart', 'checkout', or 'custom:/your/path'.");
             }
             $endpoint_list[] = [
                 'slug' => $config['endpoint'],
@@ -308,12 +308,12 @@ class MicroChaos_LoadTest_Orchestrator {
             $emails = array_map('trim', explode(',', $config['multi_auth']));
             $cookies = MicroChaos_Authentication_Manager::authenticate_users($emails);
             if (empty($cookies)) {
-                \WP_CLI::warning("No valid multi-auth sessions. Continuing without authentication.");
+                MicroChaos_Log::warning("No valid multi-auth sessions. Continuing without authentication.");
             }
         } elseif ($config['auth_user']) {
             $cookies = MicroChaos_Authentication_Manager::authenticate_user($config['auth_user']);
             if ($cookies === null) {
-                \WP_CLI::error("User with email {$config['auth_user']} not found.");
+                MicroChaos_Log::error("User with email {$config['auth_user']} not found.");
             }
         }
 
@@ -343,7 +343,7 @@ class MicroChaos_LoadTest_Orchestrator {
                 $cookies = $custom_cookie_jar;
             }
 
-            \WP_CLI::log("🍪 Added " . count($cookie_pairs) . " custom " .
+            MicroChaos_Log::log("🍪 Added " . count($cookie_pairs) . " custom " .
                           (count($cookie_pairs) === 1 ? "cookie" : "cookies"));
         }
 
@@ -358,37 +358,37 @@ class MicroChaos_LoadTest_Orchestrator {
      * @param MicroChaos_Integration_Logger $integration_logger
      */
     private function log_test_start(array $config, array $endpoint_list, MicroChaos_Integration_Logger $integration_logger): void {
-        \WP_CLI::log("🚀 MicroChaos Load Test Started");
+        MicroChaos_Log::log("🚀 MicroChaos Load Test Started");
 
         if (count($endpoint_list) === 1) {
-            \WP_CLI::log("-> URL: {$endpoint_list[0]['url']}");
+            MicroChaos_Log::log("-> URL: {$endpoint_list[0]['url']}");
         } else {
-            \WP_CLI::log("-> URLs: " . count($endpoint_list) . " endpoints (" .
+            MicroChaos_Log::log("-> URLs: " . count($endpoint_list) . " endpoints (" .
                           implode(', ', array_column($endpoint_list, 'slug')) . ") - Rotation mode: {$config['rotation_mode']}");
         }
 
-        \WP_CLI::log("-> Method: {$config['method']}");
+        MicroChaos_Log::log("-> Method: {$config['method']}");
 
         if ($config['body']) {
             $body_preview = strlen($config['body']) > 50
                 ? substr($config['body'], 0, 47) . '...'
                 : $config['body'];
-            \WP_CLI::log("-> Body: $body_preview");
+            MicroChaos_Log::log("-> Body: $body_preview");
         }
 
         if ($config['duration']) {
             $duration_word = $config['duration'] == 1 ? "minute" : "minutes";
-            \WP_CLI::log("-> Duration: {$config['duration']} $duration_word | Burst: {$config['burst']} | Delay: {$config['delay']}s");
+            MicroChaos_Log::log("-> Duration: {$config['duration']} $duration_word | Burst: {$config['burst']} | Delay: {$config['delay']}s");
         } else {
-            \WP_CLI::log("-> Total: {$config['count']} | Burst: {$config['burst']} | Delay: {$config['delay']}s");
+            MicroChaos_Log::log("-> Total: {$config['count']} | Burst: {$config['burst']} | Delay: {$config['delay']}s");
         }
 
         if ($config['collect_cache_headers']) {
-            \WP_CLI::log("-> Cache header tracking enabled");
+            MicroChaos_Log::log("-> Cache header tracking enabled");
         }
 
         if ($config['monitoring_integration']) {
-            \WP_CLI::log("-> 🔌 Monitoring integration enabled (test ID: {$integration_logger->test_id})");
+            MicroChaos_Log::log("-> 🔌 Monitoring integration enabled (test ID: {$integration_logger->test_id})");
 
             $log_config = [
                 'endpoint' => $config['endpoint'],
@@ -475,11 +475,11 @@ class MicroChaos_LoadTest_Orchestrator {
                 ? $current_ramp
                 : min($current_ramp, $config['burst'], $config['count'] - $completed);
 
-            \WP_CLI::log("⚡ Burst of $current_burst requests");
+            MicroChaos_Log::log("⚡ Burst of $current_burst requests");
 
             // Flush cache if specified
             if ($config['flush_between']) {
-                \WP_CLI::log("♻️ Flushing cache before burst...");
+                MicroChaos_Log::log("♻️ Flushing cache before burst...");
                 wp_cache_flush();
             }
 
@@ -549,7 +549,7 @@ class MicroChaos_LoadTest_Orchestrator {
                 $remaining_seconds = $elapsed_seconds % 60;
                 $time_display = $elapsed_minutes . "m " . $remaining_seconds . "s";
                 $percentage = min(round(($elapsed_seconds / ($config['duration'] * 60)) * 100), 100);
-                \WP_CLI::log("⏲ Time elapsed: $time_display ($percentage% complete, $completed requests sent)");
+                MicroChaos_Log::log("⏲ Time elapsed: $time_display ($percentage% complete, $completed requests sent)");
             }
 
             // Delay between bursts
@@ -557,7 +557,7 @@ class MicroChaos_LoadTest_Orchestrator {
 
             if ($should_delay) {
                 $random_delay = rand($config['delay'] * 50, $config['delay'] * 150) / 100;
-                \WP_CLI::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
+                MicroChaos_Log::log("⏳ Sleeping for {$random_delay}s (randomized delay)");
                 sleep((int)$random_delay);
             }
         }
@@ -616,7 +616,7 @@ class MicroChaos_LoadTest_Orchestrator {
      * @return string Profile name to use
      */
     private function calibrate_thresholds(array $summary, ?array $resource_summary, string $profile): string {
-        \WP_CLI::log("🔍 Auto-calibrating thresholds based on this test run...");
+        MicroChaos_Log::log("🔍 Auto-calibrating thresholds based on this test run...");
 
         $calibration_data = $summary;
         if ($resource_summary) {
@@ -626,14 +626,14 @@ class MicroChaos_LoadTest_Orchestrator {
 
         $thresholds = MicroChaos_Thresholds::calibrate_thresholds($calibration_data, $profile);
 
-        \WP_CLI::log("✅ Custom thresholds calibrated and saved as profile: {$profile}");
-        \WP_CLI::log("   Response time: Good <= {$thresholds['response_time']['good']}s | Warning <= {$thresholds['response_time']['warn']}s | Critical > {$thresholds['response_time']['critical']}s");
+        MicroChaos_Log::log("✅ Custom thresholds calibrated and saved as profile: {$profile}");
+        MicroChaos_Log::log("   Response time: Good <= {$thresholds['response_time']['good']}s | Warning <= {$thresholds['response_time']['warn']}s | Critical > {$thresholds['response_time']['critical']}s");
 
         if (isset($thresholds['memory_usage'])) {
-            \WP_CLI::log("   Memory usage: Good <= {$thresholds['memory_usage']['good']}% | Warning <= {$thresholds['memory_usage']['warn']}% | Critical > {$thresholds['memory_usage']['critical']}%");
+            MicroChaos_Log::log("   Memory usage: Good <= {$thresholds['memory_usage']['good']}% | Warning <= {$thresholds['memory_usage']['warn']}% | Critical > {$thresholds['memory_usage']['critical']}%");
         }
 
-        \WP_CLI::log("   Error rate: Good <= {$thresholds['error_rate']['good']}% | Warning <= {$thresholds['error_rate']['warn']}% | Critical > {$thresholds['error_rate']['critical']}%");
+        MicroChaos_Log::log("   Error rate: Good <= {$thresholds['error_rate']['good']}% | Warning <= {$thresholds['error_rate']['warn']}% | Critical > {$thresholds['error_rate']['critical']}%");
 
         return $profile;
     }

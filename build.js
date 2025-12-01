@@ -19,8 +19,13 @@ const sources = {
   components: [
     // Load constants first
     path.join(__dirname, "microchaos/core/constants.php"),
-    // Load interfaces
+    // Load interfaces (logger first - used by all components)
+    path.join(__dirname, "microchaos/core/interfaces/logger.php"),
     path.join(__dirname, "microchaos/core/interfaces/baseline-storage.php"),
+    // Load logging infrastructure (before any component that logs)
+    path.join(__dirname, "microchaos/core/log.php"),
+    path.join(__dirname, "microchaos/core/logging/wp-cli-logger.php"),
+    // Note: null-logger.php excluded from production build (test-only)
     // Load storage implementations
     path.join(__dirname, "microchaos/core/storage/transient-baseline-storage.php"),
     // Load authentication manager (before components that use it)
@@ -95,7 +100,9 @@ compiledCode += "if (defined('WP_CLI') && WP_CLI) {\n\n";
 compiledCode += classContents.join("\n\n");
 compiledCode += "\n\n";
 
-// Add the WP-CLI command registration
+// Add logger initialization and WP-CLI command registration
+compiledCode += "    // Initialize the WP-CLI logger\n";
+compiledCode += "    MicroChaos_Log::set_logger(new MicroChaos_WP_CLI_Logger());\n\n";
 compiledCode += "    // Register the MicroChaos WP-CLI command\n";
 compiledCode += "    WP_CLI::add_command('microchaos', 'MicroChaos_Commands');\n";
 compiledCode += "}\n";

@@ -68,7 +68,7 @@ class MicroChaos_Resource_Monitor {
         $system_time = round($ru['ru_stime.tv_sec'] + $ru['ru_stime.tv_usec'] / 1e6, 2);
 
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("🔍 Resources: Memory Usage: {$memory_usage} MB, Peak Memory: {$peak_memory} MB, CPU Time: User {$user_time}s, System {$system_time}s");
+            MicroChaos_Log::log("🔍 Resources: Memory Usage: {$memory_usage} MB, Peak Memory: {$peak_memory} MB, CPU Time: User {$user_time}s, System {$system_time}s");
         }
 
         $result = [
@@ -183,11 +183,11 @@ class MicroChaos_Resource_Monitor {
             $avg_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['avg'], 'memory_usage', $threshold_profile);
             $max_peak_formatted = MicroChaos_Thresholds::format_value($summary['peak_memory']['max'], 'memory_usage', $threshold_profile);
             
-            \WP_CLI::log("📊 Resource Utilization Summary:");
-            \WP_CLI::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");
-            \WP_CLI::log("   Peak Memory: Avg: {$avg_peak_formatted}, Median: {$summary['peak_memory']['median']} MB, Min: {$summary['peak_memory']['min']} MB, Max: {$max_peak_formatted}");
-            \WP_CLI::log("   CPU Time (User): Avg: {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s, Min: {$summary['user_time']['min']}s, Max: {$summary['user_time']['max']}s");
-            \WP_CLI::log("   CPU Time (System): Avg: {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s, Min: {$summary['system_time']['min']}s, Max: {$summary['system_time']['max']}s");
+            MicroChaos_Log::log("📊 Resource Utilization Summary:");
+            MicroChaos_Log::log("   Memory Usage: Avg: {$avg_mem_formatted}, Median: {$summary['memory']['median']} MB, Min: {$summary['memory']['min']} MB, Max: {$max_mem_formatted}");
+            MicroChaos_Log::log("   Peak Memory: Avg: {$avg_peak_formatted}, Median: {$summary['peak_memory']['median']} MB, Min: {$summary['peak_memory']['min']} MB, Max: {$max_peak_formatted}");
+            MicroChaos_Log::log("   CPU Time (User): Avg: {$summary['user_time']['avg']}s, Median: {$summary['user_time']['median']}s, Min: {$summary['user_time']['min']}s, Max: {$summary['user_time']['max']}s");
+            MicroChaos_Log::log("   CPU Time (System): Avg: {$summary['system_time']['avg']}s, Median: {$summary['system_time']['median']}s, Min: {$summary['system_time']['min']}s, Max: {$summary['system_time']['max']}s");
             
             // Add comparison with baseline if provided
             if ($baseline) {
@@ -200,8 +200,8 @@ class MicroChaos_Resource_Monitor {
                     $change_indicator = $mem_avg_change <= 0 ? '↓' : '↑';
                     $change_color = $mem_avg_change <= 0 ? "\033[32m" : "\033[31m";
                     
-                    \WP_CLI::log("   Comparison to Baseline:");
-                    \WP_CLI::log("   - Avg Memory: {$change_color}{$change_indicator}{$mem_avg_change}%\033[0m vs {$baseline['memory']['avg']} MB");
+                    MicroChaos_Log::log("   Comparison to Baseline:");
+                    MicroChaos_Log::log("   - Avg Memory: {$change_color}{$change_indicator}{$mem_avg_change}%\033[0m vs {$baseline['memory']['avg']} MB");
                     
                     $mem_max_change = $baseline['memory']['max'] > 0 
                         ? (($summary['memory']['max'] - $baseline['memory']['max']) / $baseline['memory']['max']) * 100 
@@ -210,7 +210,7 @@ class MicroChaos_Resource_Monitor {
                     
                     $change_indicator = $mem_max_change <= 0 ? '↓' : '↑';
                     $change_color = $mem_max_change <= 0 ? "\033[32m" : "\033[31m";
-                    \WP_CLI::log("   - Max Memory: {$change_color}{$change_indicator}{$mem_max_change}%\033[0m vs {$baseline['memory']['max']} MB");
+                    MicroChaos_Log::log("   - Max Memory: {$change_color}{$change_indicator}{$mem_max_change}%\033[0m vs {$baseline['memory']['max']} MB");
                 }
             }
             
@@ -224,7 +224,7 @@ class MicroChaos_Resource_Monitor {
                 ];
                 
                 $chart = MicroChaos_Thresholds::generate_chart($chart_data, "Memory Usage (MB)");
-                \WP_CLI::log($chart);
+                MicroChaos_Log::log($chart);
             }
         }
     }
@@ -525,7 +525,7 @@ class MicroChaos_Resource_Monitor {
     public function report_trends(): void {
         if (!$this->track_trends || count($this->resource_results) < 3) {
             if (class_exists('WP_CLI')) {
-                \WP_CLI::log("📈 Resource Trend Analysis: Insufficient data for trend analysis.");
+                MicroChaos_Log::log("📈 Resource Trend Analysis: Insufficient data for trend analysis.");
             }
             return;
         }
@@ -533,31 +533,31 @@ class MicroChaos_Resource_Monitor {
         $trends = $this->analyze_trends();
         
         if (class_exists('WP_CLI')) {
-            \WP_CLI::log("\n📈 Resource Trend Analysis:");
-            \WP_CLI::log("   Data Points: {$trends['data_points']} over {$trends['time_span']} seconds");
+            MicroChaos_Log::log("\n📈 Resource Trend Analysis:");
+            MicroChaos_Log::log("   Data Points: {$trends['data_points']} over {$trends['time_span']} seconds");
             
             // Memory usage trends
             $memory_change = $trends['memory_usage']['change_percent'];
             $memory_direction = $memory_change > 0 ? '↑' : '↓';
             $memory_color = $memory_change > 20 ? "\033[31m" : ($memory_change > 5 ? "\033[33m" : "\033[32m");
-            \WP_CLI::log("   Memory Usage: {$memory_color}{$memory_direction}{$memory_change}%\033[0m over test duration");
-            \WP_CLI::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['memory_usage']['pattern'])));
+            MicroChaos_Log::log("   Memory Usage: {$memory_color}{$memory_direction}{$memory_change}%\033[0m over test duration");
+            MicroChaos_Log::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['memory_usage']['pattern'])));
             
             // Peak memory trends
             $peak_change = $trends['peak_memory']['change_percent'];
             $peak_direction = $peak_change > 0 ? '↑' : '↓';
             $peak_color = $peak_change > 20 ? "\033[31m" : ($peak_change > 5 ? "\033[33m" : "\033[32m");
-            \WP_CLI::log("   Peak Memory: {$peak_color}{$peak_direction}{$peak_change}%\033[0m over test duration");
-            \WP_CLI::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['peak_memory']['pattern'])));
+            MicroChaos_Log::log("   Peak Memory: {$peak_color}{$peak_direction}{$peak_change}%\033[0m over test duration");
+            MicroChaos_Log::log("   Pattern: " . ucfirst(str_replace('_', ' ', $trends['peak_memory']['pattern'])));
             
             // Warning about unbounded growth if detected
             if ($trends['potentially_unbounded']) {
-                \WP_CLI::warning("⚠️ Potential memory leak detected! Resource usage shows continuous growth pattern.");
+                MicroChaos_Log::warning("⚠️ Potential memory leak detected! Resource usage shows continuous growth pattern.");
             }
             
             // Generate visual trend charts
             $charts = $this->generate_trend_charts();
-            \WP_CLI::log($charts);
+            MicroChaos_Log::log($charts);
         }
     }
 }

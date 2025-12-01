@@ -45,8 +45,14 @@ class MicroChaos_Bootstrap {
         // Load constants first
         require_once MICROCHAOS_CORE_PATH . '/constants.php';
 
-        // Load interfaces
+        // Load interfaces (order matters - logger before components that use it)
+        require_once MICROCHAOS_CORE_PATH . '/interfaces/logger.php';
         require_once MICROCHAOS_CORE_PATH . '/interfaces/baseline-storage.php';
+
+        // Load logging infrastructure (before any component that logs)
+        require_once MICROCHAOS_CORE_PATH . '/log.php';
+        require_once MICROCHAOS_CORE_PATH . '/logging/wp-cli-logger.php';
+        require_once MICROCHAOS_CORE_PATH . '/logging/null-logger.php';
 
         // Load storage implementations
         require_once MICROCHAOS_CORE_PATH . '/storage/transient-baseline-storage.php';
@@ -54,15 +60,18 @@ class MicroChaos_Bootstrap {
         // Load authentication manager (before commands that use it)
         require_once MICROCHAOS_CORE_PATH . '/authentication-manager.php';
 
+        // Load orchestrators (before commands that depend on them)
+        require_once MICROCHAOS_CORE_PATH . '/orchestrators/loadtest-orchestrator.php';
+
         // Load core components
         $core_components = [
             'thresholds.php',
             'integration-logger.php',
-            'commands.php',
             'request-generator.php',
             'cache-analyzer.php',
             'resource-monitor.php',
             'reporting-engine.php',
+            'commands.php',  // Must be last - depends on orchestrators
         ];
 
         foreach ($core_components as $component) {
@@ -77,6 +86,12 @@ class MicroChaos_Bootstrap {
      * Initialize CLI components
      */
     private static function init_cli_components() {
+        // Initialize the WP-CLI logger
+        if (class_exists('MicroChaos_Log') && class_exists('MicroChaos_WP_CLI_Logger')) {
+            MicroChaos_Log::set_logger(new MicroChaos_WP_CLI_Logger());
+        }
+
+        // Register WP-CLI commands
         if (class_exists('MicroChaos_Commands')) {
             MicroChaos_Commands::register();
         }
