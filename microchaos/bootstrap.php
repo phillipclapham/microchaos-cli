@@ -51,6 +51,9 @@ class MicroChaos_Bootstrap {
         // Load storage implementations
         require_once MICROCHAOS_CORE_PATH . '/storage/transient-baseline-storage.php';
 
+        // Load authentication manager (before commands that use it)
+        require_once MICROCHAOS_CORE_PATH . '/authentication-manager.php';
+
         // Load core components
         $core_components = [
             'thresholds.php',

@@ -1367,18 +1367,18 @@ class MicroChaos_ParallelTest {
                 
                 // Handle authentication if specified
                 if (isset($job['plan']['auth'])) {
-                    // Basic authentication implementation
-                    if (strpos($job['plan']['auth'], '@') !== false) {
-                        list($username, $domain) = explode('@', $job['plan']['auth']);
-                        $password = isset($job['plan']['password']) ? $job['plan']['password'] : 'password';
-                        
-                        // Set basic auth header
+                    $parsed = MicroChaos_Authentication_Manager::parse_auth_string($job['plan']['auth']);
+                    if ($parsed) {
+                        $password = $job['plan']['password'] ?? 'password';
+                        $auth_headers = MicroChaos_Authentication_Manager::create_basic_auth_headers(
+                            $parsed['username'],
+                            $password
+                        );
                         $request_generator->set_custom_headers(array_merge(
                             $job['plan']['headers'] ?? [],
-                            ['Authorization' => 'Basic ' . base64_encode($username . ':' . $password)]
+                            $auth_headers
                         ));
-                        
-                        file_put_contents($worker_log, "Worker #{$worker_id} using basic auth for {$username}@{$domain}\n", FILE_APPEND);
+                        file_put_contents($worker_log, "Worker #{$worker_id} using basic auth for {$parsed['username']}@{$parsed['domain']}\n", FILE_APPEND);
                     }
                 }
                 
@@ -1923,19 +1923,18 @@ class MicroChaos_ParallelTest {
             
             // Handle authentication if specified
             if (isset($job['plan']['auth'])) {
-                // Basic authentication implementation
-                if (strpos($job['plan']['auth'], '@') !== false) {
-                    list($username, $domain) = explode('@', $job['plan']['auth']);
-                    $password = isset($job['plan']['password']) ? $job['plan']['password'] : 'password';
-                    
-                    // Set basic auth header
-                    $auth_header = 'Authorization: Basic ' . base64_encode($username . ':' . $password);
+                $parsed = MicroChaos_Authentication_Manager::parse_auth_string($job['plan']['auth']);
+                if ($parsed) {
+                    $password = $job['plan']['password'] ?? 'password';
+                    $auth_headers = MicroChaos_Authentication_Manager::create_basic_auth_headers(
+                        $parsed['username'],
+                        $password
+                    );
                     $request_generator->set_custom_headers(array_merge(
                         $job['plan']['headers'] ?? [],
-                        ['Authorization' => 'Basic ' . base64_encode($username . ':' . $password)]
+                        $auth_headers
                     ));
-                    
-                    \WP_CLI::log("\r\033[K\033[36m│ Using basic authentication for {$username}@{$domain}" . str_repeat(' ', 20) . "│\033[0m");
+                    \WP_CLI::log("\r\033[K\033[36m│ Using basic authentication for {$parsed['username']}@{$parsed['domain']}" . str_repeat(' ', 20) . "│\033[0m");
                 }
             }
             

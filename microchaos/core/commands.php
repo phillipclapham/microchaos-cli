@@ -408,35 +408,15 @@ class MicroChaos_Commands {
 
         if ($multi_auth) {
             $emails = array_map('trim', explode(',', $multi_auth));
-            $auth_sessions = [];
-            foreach ($emails as $email) {
-                $user = get_user_by('email', $email);
-                if (!$user) {
-                    \WP_CLI::warning("User with email {$email} not found. Skipping.");
-                    continue;
-                }
-                wp_set_current_user($user->ID);
-                wp_set_auth_cookie($user->ID);
-                $session_cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
-                $auth_sessions[] = $session_cookies;
-                \WP_CLI::log("🔐 Added session for {$user->user_login}");
+            $cookies = MicroChaos_Authentication_Manager::authenticate_users($emails);
+            if (empty($cookies)) {
+                \WP_CLI::warning("No valid multi-auth sessions. Continuing without authentication.");
             }
-
-            if (empty($auth_sessions)) {
-                \WP_CLI::warning("No valid multi-auth sessions available. Continuing without authentication.");
-            }
-
-            $cookies = $auth_sessions;
         } elseif ($auth_user) {
-            $user = get_user_by('email', $auth_user);
-            if (!$user) {
+            $cookies = MicroChaos_Authentication_Manager::authenticate_user($auth_user);
+            if ($cookies === null) {
                 \WP_CLI::error("User with email {$auth_user} not found.");
             }
-
-            wp_set_current_user($user->ID);
-            wp_set_auth_cookie($user->ID);
-            $cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
-            \WP_CLI::log("🔐 Authenticated as {$user->user_login}");
         }
 
         // Process custom cookies if specified

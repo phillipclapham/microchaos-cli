@@ -23,6 +23,8 @@ const sources = {
     path.join(__dirname, "microchaos/core/interfaces/baseline-storage.php"),
     // Load storage implementations
     path.join(__dirname, "microchaos/core/storage/transient-baseline-storage.php"),
+    // Load authentication manager (before components that use it)
+    path.join(__dirname, "microchaos/core/authentication-manager.php"),
     // Load core components
     path.join(__dirname, "microchaos/core/thresholds.php"),
     path.join(__dirname, "microchaos/core/integration-logger.php"),

@@ -115,23 +115,10 @@ class MicroChaos_Request_Generator {
             }
 
             if ($cookies) {
-                if (is_array($cookies) && isset($cookies[0]) && is_array($cookies[0])) {
-                    // Multi-auth sessions: pick a random session
-                    $selected_cookies = $cookies[array_rand($cookies)];
-                    curl_setopt($curl, CURLOPT_COOKIE, implode('; ', array_map(
-                        function($cookie) {
-                            return "{$cookie->name}={$cookie->value}";
-                        },
-                        $selected_cookies
-                    )));
-                } else {
-                    curl_setopt($curl, CURLOPT_COOKIE, implode('; ', array_map(
-                        function($cookie) {
-                            return "{$cookie->name}={$cookie->value}";
-                        },
-                        $cookies
-                    )));
-                }
+                $selected = MicroChaos_Authentication_Manager::is_multi_auth($cookies)
+                    ? MicroChaos_Authentication_Manager::select_random_session($cookies)
+                    : $cookies;
+                curl_setopt($curl, CURLOPT_COOKIE, MicroChaos_Authentication_Manager::format_for_curl($selected));
             }
             curl_setopt($curl, CURLOPT_URL, $url);
             $start = microtime(true); // record start time for this request
@@ -231,13 +218,10 @@ class MicroChaos_Request_Generator {
         }
 
         if ($cookies) {
-            if (is_array($cookies) && isset($cookies[0]) && is_array($cookies[0])) {
-                // Multi-auth sessions: pick a random session
-                $selected_cookies = $cookies[array_rand($cookies)];
-                $args['cookies'] = $selected_cookies;
-            } else {
-                $args['cookies'] = $cookies;
-            }
+            $selected = MicroChaos_Authentication_Manager::is_multi_auth($cookies)
+                ? MicroChaos_Authentication_Manager::select_random_session($cookies)
+                : $cookies;
+            $args['cookies'] = MicroChaos_Authentication_Manager::format_for_wp_remote($selected);
         }
 
         $response = wp_remote_request($url, $args);

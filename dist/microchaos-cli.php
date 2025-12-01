@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-10-22T21:35:23.624Z
+ * Generated on: 2025-12-01T15:34:38.258Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -285,6 +285,146 @@ class MicroChaos_Transient_Baseline_Storage implements MicroChaos_Baseline_Stora
 
         $data = json_decode($json_data, true);
         return $data !== null ? $data : null;
+    }
+}
+
+class MicroChaos_Authentication_Manager {
+
+    // ==================== WordPress Cookie Authentication ====================
+
+    /**
+     * Authenticate a single user by email and retrieve cookies
+     *
+     * @param string $email User email address
+     * @return array|null Array of WP_Http_Cookie objects, or null if user not found
+     */
+    public static function authenticate_user(string $email): ?array {
+        $user = get_user_by('email', $email);
+        if (!$user) {
+            return null;
+        }
+
+        wp_set_current_user($user->ID);
+        wp_set_auth_cookie($user->ID);
+        $cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
+
+        \WP_CLI::log("🔐 Authenticated as {$user->user_login}");
+
+        return $cookies;
+    }
+
+    /**
+     * Authenticate multiple users and retrieve session cookies for each
+     *
+     * @param array $emails Array of user email addresses
+     * @return array Array of cookie session arrays (multi-auth format)
+     */
+    public static function authenticate_users(array $emails): array {
+        $auth_sessions = [];
+
+        foreach ($emails as $email) {
+            $user = get_user_by('email', $email);
+            if (!$user) {
+                \WP_CLI::warning("User with email {$email} not found. Skipping.");
+                continue;
+            }
+
+            wp_set_current_user($user->ID);
+            wp_set_auth_cookie($user->ID);
+            $session_cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
+            $auth_sessions[] = $session_cookies;
+
+            \WP_CLI::log("🔐 Added session for {$user->user_login}");
+        }
+
+        return $auth_sessions;
+    }
+
+    // ==================== HTTP Basic Authentication ====================
+
+    /**
+     * Parse auth string in username@domain format
+     *
+     * @param string $auth Auth string (e.g., "username@domain.com")
+     * @return array|null ['username' => string, 'domain' => string] or null if invalid format
+     */
+    public static function parse_auth_string(string $auth): ?array {
+        if (strpos($auth, '@') === false) {
+            return null;
+        }
+
+        list($username, $domain) = explode('@', $auth, 2);
+
+        return [
+            'username' => $username,
+            'domain' => $domain
+        ];
+    }
+
+    /**
+     * Create HTTP Basic Auth header array
+     *
+     * @param string $username Username for Basic auth
+     * @param string $password Password (defaults to 'password')
+     * @return array ['Authorization' => 'Basic base64(username:password)']
+     */
+    public static function create_basic_auth_headers(string $username, string $password = 'password'): array {
+        return [
+            'Authorization' => 'Basic ' . base64_encode($username . ':' . $password)
+        ];
+    }
+
+    // ==================== Cookie Utilities ====================
+
+    /**
+     * Detect if cookies array is multi-auth format (array of session arrays)
+     *
+     * Multi-auth format: [[WP_Http_Cookie, ...], [WP_Http_Cookie, ...], ...]
+     * Single-auth format: [WP_Http_Cookie, WP_Http_Cookie, ...]
+     *
+     * @param array $cookies Cookie array to check
+     * @return bool True if multi-auth format
+     */
+    public static function is_multi_auth(array $cookies): bool {
+        return is_array($cookies) && isset($cookies[0]) && is_array($cookies[0]);
+    }
+
+    /**
+     * Select a random session from multi-auth cookie array
+     *
+     * @param array $sessions Array of session arrays
+     * @return array Single session's cookies
+     */
+    public static function select_random_session(array $sessions): array {
+        return $sessions[array_rand($sessions)];
+    }
+
+    /**
+     * Format cookies for cURL requests (semicolon-separated string)
+     *
+     * @param array $cookies Array of WP_Http_Cookie objects
+     * @return string Cookie string in "name1=value1; name2=value2" format
+     */
+    public static function format_for_curl(array $cookies): string {
+        return implode('; ', array_map(
+            function($cookie) {
+                return "{$cookie->name}={$cookie->value}";
+            },
+            $cookies
+        ));
+    }
+
+    /**
+     * Format cookies for wp_remote_request (passthrough)
+     *
+     * wp_remote_request expects the WP_Http_Cookie array directly,
+     * so this is a passthrough for API consistency.
+     *
+     * @param array $cookies Array of WP_Http_Cookie objects
+     * @return array Same cookie array (passthrough)
+     */
+    public static function format_for_wp_remote(array $cookies): array {
+        return $cookies;
     }
 }
 
@@ -2181,18 +2321,18 @@ class MicroChaos_ParallelTest {
                 
                 // Handle authentication if specified
                 if (isset($job['plan']['auth'])) {
-                    // Basic authentication implementation
-                    if (strpos($job['plan']['auth'], '@') !== false) {
-                        list($username, $domain) = explode('@', $job['plan']['auth']);
-                        $password = isset($job['plan']['password']) ? $job['plan']['password'] : 'password';
-                        
-                        // Set basic auth header
+                    $parsed = MicroChaos_Authentication_Manager::parse_auth_string($job['plan']['auth']);
+                    if ($parsed) {
+                        $password = $job['plan']['password'] ?? 'password';
+                        $auth_headers = MicroChaos_Authentication_Manager::create_basic_auth_headers(
+                            $parsed['username'],
+                            $password
+                        );
                         $request_generator->set_custom_headers(array_merge(
                             $job['plan']['headers'] ?? [],
-                            ['Authorization' => 'Basic ' . base64_encode($username . ':' . $password)]
+                            $auth_headers
                         ));
-                        
-                        file_put_contents($worker_log, "Worker #{$worker_id} using basic auth for {$username}@{$domain}\n", FILE_APPEND);
+                        file_put_contents($worker_log, "Worker #{$worker_id} using basic auth for {$parsed['username']}@{$parsed['domain']}\n", FILE_APPEND);
                     }
                 }
                 
@@ -2737,19 +2877,18 @@ class MicroChaos_ParallelTest {
             
             // Handle authentication if specified
             if (isset($job['plan']['auth'])) {
-                // Basic authentication implementation
-                if (strpos($job['plan']['auth'], '@') !== false) {
-                    list($username, $domain) = explode('@', $job['plan']['auth']);
-                    $password = isset($job['plan']['password']) ? $job['plan']['password'] : 'password';
-                    
-                    // Set basic auth header
-                    $auth_header = 'Authorization: Basic ' . base64_encode($username . ':' . $password);
+                $parsed = MicroChaos_Authentication_Manager::parse_auth_string($job['plan']['auth']);
+                if ($parsed) {
+                    $password = $job['plan']['password'] ?? 'password';
+                    $auth_headers = MicroChaos_Authentication_Manager::create_basic_auth_headers(
+                        $parsed['username'],
+                        $password
+                    );
                     $request_generator->set_custom_headers(array_merge(
                         $job['plan']['headers'] ?? [],
-                        ['Authorization' => 'Basic ' . base64_encode($username . ':' . $password)]
+                        $auth_headers
                     ));
-                    
-                    \WP_CLI::log("\r\033[K\033[36m│ Using basic authentication for {$username}@{$domain}" . str_repeat(' ', 20) . "│\033[0m");
+                    \WP_CLI::log("\r\033[K\033[36m│ Using basic authentication for {$parsed['username']}@{$parsed['domain']}" . str_repeat(' ', 20) . "│\033[0m");
                 }
             }
             
@@ -3227,23 +3366,10 @@ class MicroChaos_Request_Generator {
             }
 
             if ($cookies) {
-                if (is_array($cookies) && isset($cookies[0]) && is_array($cookies[0])) {
-                    // Multi-auth sessions: pick a random session
-                    $selected_cookies = $cookies[array_rand($cookies)];
-                    curl_setopt($curl, CURLOPT_COOKIE, implode('; ', array_map(
-                        function($cookie) {
-                            return "{$cookie->name}={$cookie->value}";
-                        },
-                        $selected_cookies
-                    )));
-                } else {
-                    curl_setopt($curl, CURLOPT_COOKIE, implode('; ', array_map(
-                        function($cookie) {
-                            return "{$cookie->name}={$cookie->value}";
-                        },
-                        $cookies
-                    )));
-                }
+                $selected = MicroChaos_Authentication_Manager::is_multi_auth($cookies)
+                    ? MicroChaos_Authentication_Manager::select_random_session($cookies)
+                    : $cookies;
+                curl_setopt($curl, CURLOPT_COOKIE, MicroChaos_Authentication_Manager::format_for_curl($selected));
             }
             curl_setopt($curl, CURLOPT_URL, $url);
             $start = microtime(true); // record start time for this request
@@ -3343,13 +3469,10 @@ class MicroChaos_Request_Generator {
         }
 
         if ($cookies) {
-            if (is_array($cookies) && isset($cookies[0]) && is_array($cookies[0])) {
-                // Multi-auth sessions: pick a random session
-                $selected_cookies = $cookies[array_rand($cookies)];
-                $args['cookies'] = $selected_cookies;
-            } else {
-                $args['cookies'] = $cookies;
-            }
+            $selected = MicroChaos_Authentication_Manager::is_multi_auth($cookies)
+                ? MicroChaos_Authentication_Manager::select_random_session($cookies)
+                : $cookies;
+            $args['cookies'] = MicroChaos_Authentication_Manager::format_for_wp_remote($selected);
         }
 
         $response = wp_remote_request($url, $args);
@@ -4911,35 +5034,15 @@ class MicroChaos_Commands {
 
         if ($multi_auth) {
             $emails = array_map('trim', explode(',', $multi_auth));
-            $auth_sessions = [];
-            foreach ($emails as $email) {
-                $user = get_user_by('email', $email);
-                if (!$user) {
-                    \WP_CLI::warning("User with email {$email} not found. Skipping.");
-                    continue;
-                }
-                wp_set_current_user($user->ID);
-                wp_set_auth_cookie($user->ID);
-                $session_cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
-                $auth_sessions[] = $session_cookies;
-                \WP_CLI::log("🔐 Added session for {$user->user_login}");
+            $cookies = MicroChaos_Authentication_Manager::authenticate_users($emails);
+            if (empty($cookies)) {
+                \WP_CLI::warning("No valid multi-auth sessions. Continuing without authentication.");
             }
-
-            if (empty($auth_sessions)) {
-                \WP_CLI::warning("No valid multi-auth sessions available. Continuing without authentication.");
-            }
-
-            $cookies = $auth_sessions;
         } elseif ($auth_user) {
-            $user = get_user_by('email', $auth_user);
-            if (!$user) {
+            $cookies = MicroChaos_Authentication_Manager::authenticate_user($auth_user);
+            if ($cookies === null) {
                 \WP_CLI::error("User with email {$auth_user} not found.");
             }
-
-            wp_set_current_user($user->ID);
-            wp_set_auth_cookie($user->ID);
-            $cookies = wp_remote_retrieve_cookies(wp_remote_get(home_url()));
-            \WP_CLI::log("🔐 Authenticated as {$user->user_login}");
         }
 
         // Process custom cookies if specified
