@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-12-18T17:22:52.163Z
+ * Generated on: 2025-12-18T17:44:49.391Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -1331,12 +1331,18 @@ class MicroChaos_Request_Generator {
             $info = curl_getinfo($curl);
             $code = $info['http_code'] ?: 'ERROR';
 
-            // Parse headers for cache information if enabled
+            // Extract body for GraphQL error detection
+            // Note: CURLOPT_HEADER is only set when collect_cache_headers is enabled
+            $response_body = $response;
             if ($this->collect_cache_headers && $response) {
                 $header_size = $info['header_size'];
                 $header = substr($response, 0, $header_size);
+                $response_body = substr($response, $header_size);
                 $this->process_curl_headers($header);
             }
+
+            // Detect GraphQL errors in response body
+            $graphql_errors = $this->detect_graphql_errors($response_body);
 
             $message = "⏱ MicroChaos Request | Time: {$duration}s | Code: {$code} | URL: $url | Method: $method";
             error_log($message);
@@ -1350,12 +1356,14 @@ class MicroChaos_Request_Generator {
                 if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                     $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
                 }
-                MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
+                $gql_display = $graphql_errors > 0 ? " [GQL errors: {$graphql_errors}]" : '';
+                MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}{$gql_display}");
             }
 
             $results[] = [
                 'time' => $duration,
                 'code' => $code,
+                'graphql_errors' => $graphql_errors,
             ];
 
             curl_multi_remove_handle($multi_handle, $curl);
@@ -1422,6 +1430,10 @@ class MicroChaos_Request_Generator {
             ? 'ERROR'
             : wp_remote_retrieve_response_code($response);
 
+        // Get response body for GraphQL error detection
+        $response_body = is_wp_error($response) ? null : wp_remote_retrieve_body($response);
+        $graphql_errors = $this->detect_graphql_errors($response_body);
+
         // Collect cache headers if enabled and the response is valid
         if ($this->collect_cache_headers && !is_wp_error($response)) {
             $headers = wp_remote_retrieve_headers($response);
@@ -1440,13 +1452,15 @@ class MicroChaos_Request_Generator {
             if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                 $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
             }
-            MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
+            $gql_display = $graphql_errors > 0 ? " [GQL errors: {$graphql_errors}]" : '';
+            MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}{$gql_display}");
         }
 
         // Return result for reporting
         return [
             'time' => $duration,
             'code' => $code,
+            'graphql_errors' => $graphql_errors,
         ];
     }
 
@@ -1621,6 +1635,36 @@ class MicroChaos_Request_Generator {
 
         json_decode($string);
         return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+    /**
+     * Detect GraphQL errors in response body
+     *
+     * GraphQL returns HTTP 200 even when queries fail - errors are in the response body.
+     * This method parses JSON responses and counts errors in the 'errors' array.
+     *
+     * @param string|null $body Response body to check
+     * @return int Number of GraphQL errors (0 if none or not a GraphQL response)
+     */
+    private function detect_graphql_errors(?string $body): int {
+        if ($body === null || $body === '') {
+            return 0;
+        }
+
+        // Only parse if it looks like JSON
+        if (!$this->is_json($body)) {
+            return 0;
+        }
+
+        $decoded = json_decode($body, true);
+
+        // Check for GraphQL errors array
+        if (!is_array($decoded) || !isset($decoded['errors']) || !is_array($decoded['errors'])) {
+            return 0;
+        }
+
+        // Return count of errors (empty array = 0 errors)
+        return count($decoded['errors']);
     }
 }
 
@@ -2409,7 +2453,9 @@ class MicroChaos_Reporting_Engine {
             return [
                 'count' => 0,
                 'success' => 0,
-                'errors' => 0,
+                'http_errors' => 0,
+                'graphql_errors' => 0,
+                'graphql_error_requests' => 0,
                 'error_rate' => 0,
                 'timing' => [
                     'avg' => 0,
@@ -2430,13 +2476,28 @@ class MicroChaos_Reporting_Engine {
         $max = round(max($times), 4);
 
         $successes = count(array_filter($this->results, fn($r) => $r['code'] === 200));
-        $errors = $count - $successes;
-        $error_rate = $count > 0 ? round(($errors / $count) * 100, 1) : 0;
+        $http_errors = $count - $successes;
+
+        // Count GraphQL errors (requests that returned 200 but had errors in response)
+        $graphql_errors = array_sum(array_map(
+            fn($r) => $r['graphql_errors'] ?? 0,
+            $this->results
+        ));
+
+        // Total errors = HTTP errors + requests with GraphQL errors
+        $requests_with_gql_errors = count(array_filter(
+            $this->results,
+            fn($r) => ($r['graphql_errors'] ?? 0) > 0
+        ));
+        $total_errors = $http_errors + $requests_with_gql_errors;
+        $error_rate = $count > 0 ? round(($total_errors / $count) * 100, 1) : 0;
 
         return [
             'count' => $count,
-            'success' => $successes,
-            'errors' => $errors,
+            'success' => $successes - $requests_with_gql_errors, // True success = HTTP 200 AND no GQL errors
+            'http_errors' => $http_errors,
+            'graphql_errors' => $graphql_errors,
+            'graphql_error_requests' => $requests_with_gql_errors,
             'error_rate' => $error_rate,
             'timing' => [
                 'avg' => $avg,
@@ -2496,7 +2557,14 @@ class MicroChaos_Reporting_Engine {
             MicroChaos_Log::log("     Total Requests: {$summary['count']}");
             
             $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate', $threshold_profile);
-            MicroChaos_Log::log("     Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
+
+            // Build error display - show GraphQL errors only if any occurred
+            $error_parts = ["Success: {$summary['success']}", "HTTP Errors: {$summary['http_errors']}"];
+            if ($summary['graphql_errors'] > 0) {
+                $error_parts[] = "GraphQL Errors: {$summary['graphql_errors']}";
+            }
+            $error_parts[] = "Error Rate: {$error_formatted}";
+            MicroChaos_Log::log("     " . implode(" | ", $error_parts));
             
             // Format with threshold colors
             $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time', $threshold_profile);

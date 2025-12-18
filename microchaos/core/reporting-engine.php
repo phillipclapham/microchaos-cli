@@ -94,7 +94,9 @@ class MicroChaos_Reporting_Engine {
             return [
                 'count' => 0,
                 'success' => 0,
-                'errors' => 0,
+                'http_errors' => 0,
+                'graphql_errors' => 0,
+                'graphql_error_requests' => 0,
                 'error_rate' => 0,
                 'timing' => [
                     'avg' => 0,
@@ -115,13 +117,28 @@ class MicroChaos_Reporting_Engine {
         $max = round(max($times), 4);
 
         $successes = count(array_filter($this->results, fn($r) => $r['code'] === 200));
-        $errors = $count - $successes;
-        $error_rate = $count > 0 ? round(($errors / $count) * 100, 1) : 0;
+        $http_errors = $count - $successes;
+
+        // Count GraphQL errors (requests that returned 200 but had errors in response)
+        $graphql_errors = array_sum(array_map(
+            fn($r) => $r['graphql_errors'] ?? 0,
+            $this->results
+        ));
+
+        // Total errors = HTTP errors + requests with GraphQL errors
+        $requests_with_gql_errors = count(array_filter(
+            $this->results,
+            fn($r) => ($r['graphql_errors'] ?? 0) > 0
+        ));
+        $total_errors = $http_errors + $requests_with_gql_errors;
+        $error_rate = $count > 0 ? round(($total_errors / $count) * 100, 1) : 0;
 
         return [
             'count' => $count,
-            'success' => $successes,
-            'errors' => $errors,
+            'success' => $successes - $requests_with_gql_errors, // True success = HTTP 200 AND no GQL errors
+            'http_errors' => $http_errors,
+            'graphql_errors' => $graphql_errors,
+            'graphql_error_requests' => $requests_with_gql_errors,
             'error_rate' => $error_rate,
             'timing' => [
                 'avg' => $avg,
@@ -181,7 +198,14 @@ class MicroChaos_Reporting_Engine {
             MicroChaos_Log::log("     Total Requests: {$summary['count']}");
             
             $error_formatted = MicroChaos_Thresholds::format_value($error_rate, 'error_rate', $threshold_profile);
-            MicroChaos_Log::log("     Success: {$summary['success']} | Errors: {$summary['errors']} | Error Rate: {$error_formatted}");
+
+            // Build error display - show GraphQL errors only if any occurred
+            $error_parts = ["Success: {$summary['success']}", "HTTP Errors: {$summary['http_errors']}"];
+            if ($summary['graphql_errors'] > 0) {
+                $error_parts[] = "GraphQL Errors: {$summary['graphql_errors']}";
+            }
+            $error_parts[] = "Error Rate: {$error_formatted}";
+            MicroChaos_Log::log("     " . implode(" | ", $error_parts));
             
             // Format with threshold colors
             $avg_time_formatted = MicroChaos_Thresholds::format_value($summary['timing']['avg'], 'response_time', $threshold_profile);

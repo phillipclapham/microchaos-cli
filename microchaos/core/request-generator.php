@@ -157,12 +157,18 @@ class MicroChaos_Request_Generator {
             $info = curl_getinfo($curl);
             $code = $info['http_code'] ?: 'ERROR';
 
-            // Parse headers for cache information if enabled
+            // Extract body for GraphQL error detection
+            // Note: CURLOPT_HEADER is only set when collect_cache_headers is enabled
+            $response_body = $response;
             if ($this->collect_cache_headers && $response) {
                 $header_size = $info['header_size'];
                 $header = substr($response, 0, $header_size);
+                $response_body = substr($response, $header_size);
                 $this->process_curl_headers($header);
             }
+
+            // Detect GraphQL errors in response body
+            $graphql_errors = $this->detect_graphql_errors($response_body);
 
             $message = "⏱ MicroChaos Request | Time: {$duration}s | Code: {$code} | URL: $url | Method: $method";
             error_log($message);
@@ -176,12 +182,14 @@ class MicroChaos_Request_Generator {
                 if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                     $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
                 }
-                MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
+                $gql_display = $graphql_errors > 0 ? " [GQL errors: {$graphql_errors}]" : '';
+                MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}{$gql_display}");
             }
 
             $results[] = [
                 'time' => $duration,
                 'code' => $code,
+                'graphql_errors' => $graphql_errors,
             ];
 
             curl_multi_remove_handle($multi_handle, $curl);
@@ -248,6 +256,10 @@ class MicroChaos_Request_Generator {
             ? 'ERROR'
             : wp_remote_retrieve_response_code($response);
 
+        // Get response body for GraphQL error detection
+        $response_body = is_wp_error($response) ? null : wp_remote_retrieve_body($response);
+        $graphql_errors = $this->detect_graphql_errors($response_body);
+
         // Collect cache headers if enabled and the response is valid
         if ($this->collect_cache_headers && !is_wp_error($response)) {
             $headers = wp_remote_retrieve_headers($response);
@@ -266,13 +278,15 @@ class MicroChaos_Request_Generator {
             if ($this->collect_cache_headers && !empty($this->last_request_cache_headers)) {
                 $cache_display = ' ' . $this->format_cache_headers_for_display($this->last_request_cache_headers);
             }
-            MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}");
+            $gql_display = $graphql_errors > 0 ? " [GQL errors: {$graphql_errors}]" : '';
+            MicroChaos_Log::log("-> {$code} in {$duration}s{$cache_display}{$gql_display}");
         }
 
         // Return result for reporting
         return [
             'time' => $duration,
             'code' => $code,
+            'graphql_errors' => $graphql_errors,
         ];
     }
 
@@ -447,5 +461,35 @@ class MicroChaos_Request_Generator {
 
         json_decode($string);
         return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+    /**
+     * Detect GraphQL errors in response body
+     *
+     * GraphQL returns HTTP 200 even when queries fail - errors are in the response body.
+     * This method parses JSON responses and counts errors in the 'errors' array.
+     *
+     * @param string|null $body Response body to check
+     * @return int Number of GraphQL errors (0 if none or not a GraphQL response)
+     */
+    private function detect_graphql_errors(?string $body): int {
+        if ($body === null || $body === '') {
+            return 0;
+        }
+
+        // Only parse if it looks like JSON
+        if (!$this->is_json($body)) {
+            return 0;
+        }
+
+        $decoded = json_decode($body, true);
+
+        // Check for GraphQL errors array
+        if (!is_array($decoded) || !isset($decoded['errors']) || !is_array($decoded['errors'])) {
+            return 0;
+        }
+
+        // Return count of errors (empty array = 0 errors)
+        return count($decoded['errors']);
     }
 }
