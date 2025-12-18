@@ -102,6 +102,13 @@ class MicroChaos_Commands {
      * [--header=<header>]
      * : Set custom HTTP headers in name=value format. Use comma for multiple headers. Example: X-Test=123,Authorization=Bearer abc123
      *
+     * [--user-agent=<user_agent>]
+     * : Custom User-Agent header. Required for Pressable headless apps. Format: your-app-name/1.0
+     *
+     * [--graphql]
+     * : Shorthand for GraphQL testing. Sets method=POST and endpoint=/graphql if not specified.
+     *   Use with --body to provide your GraphQL query.
+     *
      * [--rampup]
      * : Gradually increase the number of concurrent requests from 1 up to the burst limit.
      *
@@ -197,6 +204,15 @@ class MicroChaos_Commands {
      *     # Save thresholds with a custom profile name
      *     wp microchaos loadtest --endpoint=home --count=50 --auto-thresholds --auto-thresholds-profile=homepage
      *
+     *     # GraphQL load testing (using shorthand)
+     *     wp microchaos loadtest --graphql --body='{"query":"{ posts { nodes { title } } }"}' --count=100
+     *
+     *     # GraphQL with custom User-Agent (required for Pressable headless)
+     *     wp microchaos loadtest --graphql --body='{"query":"{ posts { nodes { title } } }"}' --user-agent=my-app/1.0 --count=50
+     *
+     *     # GraphQL with explicit endpoint and method (override defaults)
+     *     wp microchaos loadtest --graphql --endpoint=custom:/api/graphql --method=GET --count=50
+     *
      * @param array<int, string> $args Command arguments
      * @param array<string, mixed> $assoc_args Command options
      */
@@ -232,15 +248,21 @@ class MicroChaos_Commands {
             ? ($assoc_args['save-baseline'] ?: 'default')
             : null;
 
+        // Handle --graphql shorthand (apply defaults, allow overrides)
+        $graphql_mode = isset($assoc_args['graphql']);
+        $method = strtoupper($assoc_args['method'] ?? ($graphql_mode ? 'POST' : 'GET'));
+        $endpoint = $assoc_args['endpoint'] ?? ($graphql_mode ? 'custom:/graphql' : null);
+
         return [
-            'endpoint' => $assoc_args['endpoint'] ?? null,
+            'endpoint' => $endpoint,
             'endpoints' => $assoc_args['endpoints'] ?? null,
             'count' => intval($assoc_args['count'] ?? 100),
             'duration' => isset($assoc_args['duration']) ? floatval($assoc_args['duration']) : null,
             'burst' => intval($assoc_args['burst'] ?? 10),
             'delay' => intval($assoc_args['delay'] ?? 2),
-            'method' => strtoupper($assoc_args['method'] ?? 'GET'),
+            'method' => $method,
             'body' => $assoc_args['body'] ?? null,
+            'user_agent' => $assoc_args['user-agent'] ?? null,
             'warm_cache' => isset($assoc_args['warm-cache']),
             'flush_between' => isset($assoc_args['flush-between']),
             'rampup' => isset($assoc_args['rampup']),

@@ -11,7 +11,7 @@
 
 /**
  * COMPILED SINGLE-FILE VERSION
- * Generated on: 2025-12-01T21:32:15.211Z
+ * Generated on: 2025-12-18T17:22:52.163Z
  * 
  * This is an automatically generated file - DO NOT EDIT DIRECTLY
  * Make changes to the modular version and rebuild.
@@ -1227,12 +1227,28 @@ class MicroChaos_Request_Generator {
     private array $custom_headers = [];
 
     /**
+     * Custom User-Agent string
+     *
+     * @var string|null
+     */
+    private ?string $custom_user_agent = null;
+
+    /**
      * Set custom headers
      *
      * @param array<string, string> $headers Custom headers in key-value format
      */
     public function set_custom_headers(array $headers): void {
         $this->custom_headers = $headers;
+    }
+
+    /**
+     * Set custom User-Agent string
+     *
+     * @param string $user_agent Custom User-Agent header value
+     */
+    public function set_user_agent(string $user_agent): void {
+        $this->custom_user_agent = $user_agent;
     }
 
     /**
@@ -1259,7 +1275,7 @@ class MicroChaos_Request_Generator {
             
             // Prepare headers array
             $headers = [
-                'User-Agent: ' . $this->get_random_user_agent(),
+                'User-Agent: ' . $this->get_user_agent(),
             ];
             
             // Add custom headers if any
@@ -1366,7 +1382,7 @@ class MicroChaos_Request_Generator {
         $args = [
             'timeout' => 10,
             'blocking' => true,
-            'user-agent' => $this->get_random_user_agent(),
+            'user-agent' => $this->get_user_agent(),
             'method' => $method,
         ];
         
@@ -1571,11 +1587,17 @@ class MicroChaos_Request_Generator {
     }
 
     /**
-     * Get a random user agent string
+     * Get user agent string (custom if set, otherwise random)
      *
-     * @return string Random user agent
+     * @return string User agent string
      */
-    private function get_random_user_agent(): string {
+    private function get_user_agent(): string {
+        // Use custom User-Agent if set (required for Pressable headless apps)
+        if ($this->custom_user_agent !== null) {
+            return $this->custom_user_agent;
+        }
+
+        // Otherwise return random realistic user agent
         $agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',
@@ -2638,6 +2660,7 @@ class MicroChaos_LoadTest_Orchestrator {
             'delay' => 2,
             'method' => 'GET',
             'body' => null,
+            'user_agent' => null,
             'warm_cache' => false,
             'flush_between' => false,
             'rampup' => false,
@@ -2730,6 +2753,12 @@ class MicroChaos_LoadTest_Orchestrator {
             $request_generator->set_custom_headers($headers);
             MicroChaos_Log::log("📝 Added " . count($header_pairs) . " custom " .
                           (count($header_pairs) === 1 ? "header" : "headers"));
+        }
+
+        // Set custom User-Agent if specified
+        if ($config['user_agent']) {
+            $request_generator->set_user_agent($config['user_agent']);
+            MicroChaos_Log::log("🤖 Using custom User-Agent: {$config['user_agent']}");
         }
 
         // Log test start
@@ -3330,6 +3359,13 @@ class MicroChaos_Commands {
      * [--header=<header>]
      * : Set custom HTTP headers in name=value format. Use comma for multiple headers. Example: X-Test=123,Authorization=Bearer abc123
      *
+     * [--user-agent=<user_agent>]
+     * : Custom User-Agent header. Required for Pressable headless apps. Format: your-app-name/1.0
+     *
+     * [--graphql]
+     * : Shorthand for GraphQL testing. Sets method=POST and endpoint=/graphql if not specified.
+     *   Use with --body to provide your GraphQL query.
+     *
      * [--rampup]
      * : Gradually increase the number of concurrent requests from 1 up to the burst limit.
      *
@@ -3425,6 +3461,15 @@ class MicroChaos_Commands {
      *     # Save thresholds with a custom profile name
      *     wp microchaos loadtest --endpoint=home --count=50 --auto-thresholds --auto-thresholds-profile=homepage
      *
+     *     # GraphQL load testing (using shorthand)
+     *     wp microchaos loadtest --graphql --body='{"query":"{ posts { nodes { title } } }"}' --count=100
+     *
+     *     # GraphQL with custom User-Agent (required for Pressable headless)
+     *     wp microchaos loadtest --graphql --body='{"query":"{ posts { nodes { title } } }"}' --user-agent=my-app/1.0 --count=50
+     *
+     *     # GraphQL with explicit endpoint and method (override defaults)
+     *     wp microchaos loadtest --graphql --endpoint=custom:/api/graphql --method=GET --count=50
+     *
      * @param array<int, string> $args Command arguments
      * @param array<string, mixed> $assoc_args Command options
      */
@@ -3460,15 +3505,21 @@ class MicroChaos_Commands {
             ? ($assoc_args['save-baseline'] ?: 'default')
             : null;
 
+        // Handle --graphql shorthand (apply defaults, allow overrides)
+        $graphql_mode = isset($assoc_args['graphql']);
+        $method = strtoupper($assoc_args['method'] ?? ($graphql_mode ? 'POST' : 'GET'));
+        $endpoint = $assoc_args['endpoint'] ?? ($graphql_mode ? 'custom:/graphql' : null);
+
         return [
-            'endpoint' => $assoc_args['endpoint'] ?? null,
+            'endpoint' => $endpoint,
             'endpoints' => $assoc_args['endpoints'] ?? null,
             'count' => intval($assoc_args['count'] ?? 100),
             'duration' => isset($assoc_args['duration']) ? floatval($assoc_args['duration']) : null,
             'burst' => intval($assoc_args['burst'] ?? 10),
             'delay' => intval($assoc_args['delay'] ?? 2),
-            'method' => strtoupper($assoc_args['method'] ?? 'GET'),
+            'method' => $method,
             'body' => $assoc_args['body'] ?? null,
+            'user_agent' => $assoc_args['user-agent'] ?? null,
             'warm_cache' => isset($assoc_args['warm-cache']),
             'flush_between' => isset($assoc_args['flush-between']),
             'rampup' => isset($assoc_args['rampup']),

@@ -1,6 +1,6 @@
 # ⚡️ MicroChaos CLI Load Tester
 
-v3.0.0
+v3.1.0
 
 Welcome to **MicroChaos**—a precision-built WP-CLI load testing tool forged in the fires of real-world WordPress hosting constraints.
 
@@ -344,6 +344,8 @@ wp microchaos loadtest --endpoint=checkout --count=50 --auth=admin@example.com -
 - `--multi-auth=<email1,email2>` Rotate across multiple users
 - `--cookie=<name=value>` Set custom cookie(s), comma-separated for multiple
 - `--header=<name=value>` Set custom HTTP headers, comma-separated for multiple
+- `--user-agent=<string>` Custom User-Agent header (required for Pressable headless apps)
+- `--graphql` Shorthand for GraphQL testing (sets method=POST, endpoint=/graphql)
 
 ### Test Behavior
 
@@ -480,11 +482,48 @@ Example cache summary:
      3.dca_atomic_dca STALE: 25 (50.0%)
      3.dca_atomic_dca UPDATING: 15 (30.0%)
      3.dca_atomic_dca HIT: 10 (20.0%)
-     
+
    🦇 Batcache (x-nananana):
      MISS: 30 (60.0%)
      HIT: 20 (40.0%)
 ```
+
+### GraphQL Load Testing
+
+MicroChaos supports load testing GraphQL endpoints (WPGraphQL, etc.) for headless WordPress sites.
+
+**Basic GraphQL test using the shorthand:**
+
+```bash
+wp microchaos loadtest --graphql --body='{"query":"{ posts { nodes { title } } }"}' --count=100
+```
+
+The `--graphql` flag automatically sets:
+- `--method=POST`
+- `--endpoint=custom:/graphql`
+
+**GraphQL with custom User-Agent (required for Pressable headless):**
+
+```bash
+wp microchaos loadtest --graphql \
+  --body='{"query":"{ posts { nodes { title } } }"}' \
+  --user-agent=my-headless-app/1.0 \
+  --count=50 --cache-headers
+```
+
+Pressable's headless documentation requires a custom User-Agent in the format `your-app-name/version` for rate limit exceptions.
+
+**Override defaults for advanced use cases:**
+
+```bash
+# Use GET for cacheable queries (WPGraphQL Smart Cache)
+wp microchaos loadtest --graphql --method=GET --count=50 --cache-headers
+
+# Custom GraphQL endpoint path
+wp microchaos loadtest --graphql --endpoint=custom:/api/graphql --count=50
+```
+
+**Cache behavior note:** POST requests to `/graphql` bypass Pressable Edge Cache (always BYPASS). For cacheable GraphQL queries, use `--method=GET` with WPGraphQL Smart Cache enabled - GET queries can achieve cache HITs (~30ms vs ~450ms uncached).
 
 ---
 
@@ -615,19 +654,21 @@ Test sideways. Wear lab goggles. Hit the endpoints like they owe you money and a
 
 ## 🛠 Roadmap
 
-### Phase 4: GraphQL & Headless WordPress (Next)
+### Phase 4: GraphQL & Headless WordPress ✅ Complete
 
-The primary goal for MicroChaos is **GraphQL endpoint testing** for headless WordPress:
+MicroChaos now supports **GraphQL endpoint testing** for headless WordPress:
 
-- **WPGraphQL integration** - Detect and test GraphQL endpoints
-- **Query generation** - Generate test queries from schema
-- **JWT/OAuth authentication** - Headless auth patterns
-- **Query complexity metrics** - Track resolver performance
+- ✅ **`--graphql` shorthand** - Sets method=POST and endpoint=/graphql automatically
+- ✅ **`--user-agent` flag** - Custom User-Agent required for Pressable headless apps
+- ✅ **Override support** - Combine with `--method=GET` for cacheable queries
+- ✅ **Documented Pressable behavior** - POST=BYPASS, GET=cacheable
 
 ### Future Ideas
 
 - **Advanced visualizations** - Interactive charts for test results
 - **Custom test templates** - Pre-configured plans for e-commerce, membership sites, etc.
+- **GraphQL error detection** - Detect and report `errors` in GraphQL responses
+- **Query complexity metrics** - Track resolver performance
 
 ---
 

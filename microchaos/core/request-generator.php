@@ -53,12 +53,28 @@ class MicroChaos_Request_Generator {
     private array $custom_headers = [];
 
     /**
+     * Custom User-Agent string
+     *
+     * @var string|null
+     */
+    private ?string $custom_user_agent = null;
+
+    /**
      * Set custom headers
      *
      * @param array<string, string> $headers Custom headers in key-value format
      */
     public function set_custom_headers(array $headers): void {
         $this->custom_headers = $headers;
+    }
+
+    /**
+     * Set custom User-Agent string
+     *
+     * @param string $user_agent Custom User-Agent header value
+     */
+    public function set_user_agent(string $user_agent): void {
+        $this->custom_user_agent = $user_agent;
     }
 
     /**
@@ -85,7 +101,7 @@ class MicroChaos_Request_Generator {
             
             // Prepare headers array
             $headers = [
-                'User-Agent: ' . $this->get_random_user_agent(),
+                'User-Agent: ' . $this->get_user_agent(),
             ];
             
             // Add custom headers if any
@@ -192,7 +208,7 @@ class MicroChaos_Request_Generator {
         $args = [
             'timeout' => 10,
             'blocking' => true,
-            'user-agent' => $this->get_random_user_agent(),
+            'user-agent' => $this->get_user_agent(),
             'method' => $method,
         ];
         
@@ -397,11 +413,17 @@ class MicroChaos_Request_Generator {
     }
 
     /**
-     * Get a random user agent string
+     * Get user agent string (custom if set, otherwise random)
      *
-     * @return string Random user agent
+     * @return string User agent string
      */
-    private function get_random_user_agent(): string {
+    private function get_user_agent(): string {
+        // Use custom User-Agent if set (required for Pressable headless apps)
+        if ($this->custom_user_agent !== null) {
+            return $this->custom_user_agent;
+        }
+
+        // Otherwise return random realistic user agent
         $agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',

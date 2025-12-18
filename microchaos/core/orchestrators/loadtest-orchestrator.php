@@ -51,6 +51,7 @@ class MicroChaos_LoadTest_Orchestrator {
             'delay' => 2,
             'method' => 'GET',
             'body' => null,
+            'user_agent' => null,
             'warm_cache' => false,
             'flush_between' => false,
             'rampup' => false,
@@ -143,6 +144,12 @@ class MicroChaos_LoadTest_Orchestrator {
             $request_generator->set_custom_headers($headers);
             MicroChaos_Log::log("📝 Added " . count($header_pairs) . " custom " .
                           (count($header_pairs) === 1 ? "header" : "headers"));
+        }
+
+        // Set custom User-Agent if specified
+        if ($config['user_agent']) {
+            $request_generator->set_user_agent($config['user_agent']);
+            MicroChaos_Log::log("🤖 Using custom User-Agent: {$config['user_agent']}");
         }
 
         // Log test start
